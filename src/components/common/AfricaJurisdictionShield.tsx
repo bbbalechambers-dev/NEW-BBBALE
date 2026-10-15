@@ -36,7 +36,7 @@ export const AfricaJurisdictionShield: React.FC<AfricaJurisdictionShieldProps> =
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: tokenInput.trim() })
       });
-      const data = await res.json();
+      const data: any = await res.json();
       if (res.ok && data.success) {
         onBypassSuccess();
       } else {

@@ -7,7 +7,7 @@ declare global {
 }
 
 // Cloud SQL is explicitly disabled per system configuration
-export const isCloudSqlEnabled = process.env.ENABLE_CLOUDSQL === 'true';
+export const isCloudSqlEnabled = (process.env.ENABLE_CLOUDSQL as unknown as string) === 'true';
 
 export const createPool = () => {
   if (!isCloudSqlEnabled || !process.env.SQL_HOST) {

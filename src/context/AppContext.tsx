@@ -384,7 +384,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const res = await fetch('/api/sync/pull');
       if (res.ok) {
-        const payload = await res.json();
+        const payload: any = await res.json();
         if (payload && payload.data) {
           localVersionRef.current = payload.version || Date.now();
           applyCloudSnapshot(payload.data);
@@ -450,7 +450,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       if (res.ok) {
-        const result = await res.json();
+        const result: any = await res.json();
         localVersionRef.current = result.version;
         setLastSyncedAt(result.lastModified || new Date().toISOString());
         setSyncStatus('Synced');
@@ -479,7 +479,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const res = await fetch('/api/sync/version');
         if (res.ok) {
-          const info = await res.json();
+          const info: any = await res.json();
           if (info.version && info.version > localVersionRef.current) {
             await pullFromCloud();
           }
@@ -494,7 +494,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const res = await fetch('/api/sync/version');
         if (res.ok) {
-          const info = await res.json();
+          const info: any = await res.json();
           if (info.version && info.version > localVersionRef.current) {
             await pullFromCloud();
           }
@@ -666,7 +666,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       if (res.ok) {
-        const data = await res.json();
+        const data: any = await res.json();
         if (data.success && data.user) {
           const authUser: User = data.user;
           setCurrentUser(authUser);

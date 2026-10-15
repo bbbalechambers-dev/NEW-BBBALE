@@ -67,15 +67,15 @@ export const GoogleCloudAfricaModule: React.FC = () => {
         fetch('/api/database/status')
       ]);
       if (geoRes.ok) {
-        const data = await geoRes.json();
+        const data = (await geoRes.json()) as GeoAccessStatus;
         setGeoStatus(data);
       }
       if (quotaRes.ok) {
-        const quotaData = await quotaRes.json();
+        const quotaData = (await quotaRes.json()) as CloudQuotaGovernor;
         setQuotaGovernor(quotaData);
       }
       if (dbRes.ok) {
-        const dbData = await dbRes.json();
+        const dbData: any = await dbRes.json();
         setDbStatus(dbData);
       }
     } catch {
