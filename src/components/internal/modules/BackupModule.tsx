@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import { PrintHeader } from '../../common/PrintHeader';
-import { Archive, Printer, Download, Calendar, CheckSquare, Shield, Clock, FileCheck } from 'lucide-react';
+import { Archive, Printer, Download, Calendar, CheckSquare, Shield, Clock, FileCheck, Cloud, CloudUpload, CheckCircle2 } from 'lucide-react';
 import { BackupRecord } from '../../../types';
 
 export const BackupModule: React.FC = () => {
@@ -20,11 +20,14 @@ export const BackupModule: React.FC = () => {
     getActiveBranch,
     branches,
     canAccessBranchData,
-    effectiveBranchId
+    effectiveBranchId,
+    pushAllToCloudflareDatabase
   } = useApp();
 
   const [dateStart, setDateStart] = useState('2026-01-01');
   const [dateEnd, setDateEnd] = useState(new Date().toISOString().split('T')[0]);
+  const [isSyncingCloudflare, setIsSyncingCloudflare] = useState(false);
+  const [cfSuccessMsg, setCfSuccessMsg] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([
     'Litigation Matters',
     'Clients & KYC',
@@ -71,6 +74,22 @@ export const BackupModule: React.FC = () => {
     setActiveBackupBundle(backup);
   };
 
+  const handleStoreToCloudflare = async () => {
+    setIsSyncingCloudflare(true);
+    setCfSuccessMsg(null);
+    try {
+      const res = await pushAllToCloudflareDatabase();
+      if (res.success) {
+        setCfSuccessMsg(`Stored ${res.count} records in Cloudflare D1 Database (chambers-d1-db).`);
+        setTimeout(() => setCfSuccessMsg(null), 6000);
+      }
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setIsSyncingCloudflare(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -83,7 +102,25 @@ export const BackupModule: React.FC = () => {
             Section 13: Administrator compiles official printable physical backup bundles with Cover Page, TOC, and Reference No [BRANCH]/BKP/[YEAR]/[SEQ].
           </p>
         </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleStoreToCloudflare}
+            disabled={isSyncingCloudflare}
+            className="px-3.5 py-2 bg-[#1a2a4a] hover:bg-[#253961] text-[#c9a227] font-bold text-xs rounded-lg flex items-center gap-2 border border-[#c9a227]/40 shadow-xs cursor-pointer disabled:opacity-60"
+          >
+            <CloudUpload className={`w-4 h-4 ${isSyncingCloudflare ? 'animate-bounce' : ''}`} />
+            {isSyncingCloudflare ? 'Storing in D1...' : 'Store Data in Cloudflare Database'}
+          </button>
+        </div>
       </div>
+
+      {cfSuccessMsg && (
+        <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-lg text-xs flex items-center gap-2 font-medium">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          {cfSuccessMsg}
+        </div>
+      )}
 
       {/* Backup Bundle Compilation Form */}
       <div className="bg-white p-6 rounded-xl border border-[#e0ddd5] shadow-xs space-y-5">

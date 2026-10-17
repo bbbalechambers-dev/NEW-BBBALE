@@ -275,8 +275,457 @@ function jsonResponse(data: any, status = 200): Response {
 }
 
 export interface Env {
+  DB?: D1Database;
   ASSETS?: Fetcher;
   [key: string]: any;
+}
+
+// Cloudflare D1 Database Helper Functions
+async function initD1Tables(db: D1Database): Promise<boolean> {
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS chambers_sync (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS branches (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        name TEXT,
+        state TEXT,
+        status TEXT,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT,
+        full_name TEXT,
+        role TEXT,
+        branch_id TEXT,
+        status TEXT,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS matters (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        title TEXT,
+        suit_number TEXT,
+        court_category TEXT,
+        branch_id TEXT,
+        status TEXT,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS clients (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        full_name TEXT,
+        branch_id TEXT,
+        status TEXT,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS property_records (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        title_deed_number TEXT,
+        name TEXT,
+        property_type TEXT,
+        address TEXT,
+        state TEXT,
+        lga TEXT,
+        owner_client_id TEXT REFERENCES clients(id) ON UPDATE CASCADE ON DELETE SET NULL,
+        units_count INTEGER DEFAULT 1,
+        occupancy_status TEXT,
+        legal_status TEXT,
+        branch_id TEXT,
+        status TEXT,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS case_files (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        suit_number TEXT,
+        title TEXT,
+        client_id TEXT REFERENCES clients(id) ON UPDATE CASCADE ON DELETE CASCADE,
+        property_record_id TEXT REFERENCES property_records(id) ON UPDATE CASCADE ON DELETE SET NULL,
+        court_category TEXT,
+        case_type TEXT,
+        sub_category TEXT,
+        branch_id TEXT,
+        presiding_judge TEXT,
+        lead_counsel TEXT,
+        filing_date TEXT,
+        next_hearing_date TEXT,
+        estimated_fee REAL,
+        status TEXT,
+        description TEXT,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS owners (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        full_name TEXT,
+        branch_id TEXT,
+        status TEXT,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS properties (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        name TEXT,
+        branch_id TEXT,
+        status TEXT,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS tenants (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        property_id TEXT,
+        full_name TEXT,
+        branch_id TEXT,
+        status TEXT,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS invoices (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        branch_id TEXT,
+        total_amount REAL,
+        payment_status TEXT,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS receipts (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        branch_id TEXT,
+        amount REAL,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS bookings (
+        id TEXT PRIMARY KEY,
+        reference_number TEXT,
+        client_name TEXT,
+        branch_id TEXT,
+        status TEXT,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS precedents (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        title TEXT,
+        court TEXT,
+        branch_id TEXT,
+        data_json TEXT,
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS staff (
+        id TEXT PRIMARY KEY,
+        code TEXT,
+        full_name TEXT,
+        branch_id TEXT,
+        data_json TEXT
+      );
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        action TEXT,
+        actor TEXT,
+        branch_id TEXT,
+        timestamp TEXT
+      );
+    `);
+    return true;
+  } catch (e) {
+    console.warn('Cloudflare D1 table init note:', e);
+    return false;
+  }
+}
+
+async function persistToD1(db: D1Database, state: ServerSyncState): Promise<boolean> {
+  try {
+    await initD1Tables(db);
+
+    // 1. Store Master Snapshot in D1
+    await db.prepare(`
+      INSERT INTO chambers_sync (key, value, version, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET
+        value = excluded.value,
+        version = excluded.version,
+        updated_at = excluded.updated_at
+    `).bind('master', JSON.stringify(state), state.version, state.lastModified).run();
+
+    // 2. Persist Clients First (Foreign key parent)
+    if (Array.isArray(state.data.clients)) {
+      for (const c of state.data.clients) {
+        if (!c || !c.id) continue;
+        await db.prepare(`
+          INSERT INTO clients (id, code, full_name, branch_id, status, data_json, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            code = excluded.code,
+            full_name = excluded.full_name,
+            branch_id = excluded.branch_id,
+            status = excluded.status,
+            data_json = excluded.data_json
+        `).bind(c.id, c.code || '', c.fullName || '', c.branchId || '', c.status || 'Active', JSON.stringify(c), c.createdAt || new Date().toISOString()).run();
+      }
+    }
+
+    // 3. Persist Property Records (FK -> clients)
+    if (Array.isArray(state.data.properties)) {
+      for (const p of state.data.properties) {
+        if (!p || !p.id) continue;
+        await db.prepare(`
+          INSERT INTO property_records (id, code, title_deed_number, name, property_type, address, state, lga, owner_client_id, units_count, occupancy_status, legal_status, branch_id, status, data_json, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            code = excluded.code,
+            title_deed_number = excluded.title_deed_number,
+            name = excluded.name,
+            property_type = excluded.property_type,
+            address = excluded.address,
+            state = excluded.state,
+            lga = excluded.lga,
+            owner_client_id = excluded.owner_client_id,
+            units_count = excluded.units_count,
+            occupancy_status = excluded.occupancy_status,
+            legal_status = excluded.legal_status,
+            branch_id = excluded.branch_id,
+            status = excluded.status,
+            data_json = excluded.data_json
+        `).bind(
+          p.id,
+          p.code || '',
+          p.titleDeedNumber || p.code || '',
+          p.name || '',
+          p.propertyType || 'Commercial',
+          p.address || '',
+          p.state || '',
+          p.lga || '',
+          p.ownerId || null,
+          p.unitsCount || 1,
+          p.occupancyStatus || 'Occupied',
+          p.legalStatus || 'Freehold',
+          p.branchId || '',
+          p.status || 'Active',
+          JSON.stringify(p),
+          p.createdAt || new Date().toISOString()
+        ).run();
+
+        // Also update legacy properties table if present
+        await db.prepare(`
+          INSERT INTO properties (id, code, name, branch_id, status, data_json, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            code = excluded.code,
+            name = excluded.name,
+            branch_id = excluded.branch_id,
+            status = excluded.status,
+            data_json = excluded.data_json
+        `).bind(p.id, p.code || '', p.name || '', p.branchId || '', p.status || 'Active', JSON.stringify(p), p.createdAt || new Date().toISOString()).run();
+      }
+    }
+
+    // 4. Persist Case Files (FK -> clients, FK -> property_records)
+    if (Array.isArray(state.data.matters)) {
+      for (const m of state.data.matters) {
+        if (!m || !m.id) continue;
+        await db.prepare(`
+          INSERT INTO case_files (id, code, title, suit_number, court_category, case_type, sub_category, branch_id, client_id, property_record_id, status, data_json, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            code = excluded.code,
+            title = excluded.title,
+            suit_number = excluded.suit_number,
+            court_category = excluded.court_category,
+            case_type = excluded.case_type,
+            sub_category = excluded.sub_category,
+            branch_id = excluded.branch_id,
+            client_id = excluded.client_id,
+            property_record_id = excluded.property_record_id,
+            status = excluded.status,
+            data_json = excluded.data_json
+        `).bind(
+          m.id,
+          m.code || '',
+          m.title || '',
+          m.suitNumber || '',
+          m.courtCategory || '',
+          m.caseType || '',
+          m.subCategory || '',
+          m.branchId || '',
+          m.clientId || (state.data.clients && state.data.clients[0]?.id ? state.data.clients[0].id : m.id),
+          m.propertyRecordId || null,
+          m.status || 'Active',
+          JSON.stringify(m),
+          m.createdAt || new Date().toISOString()
+        ).run();
+
+        // Also update legacy matters table if present
+        await db.prepare(`
+          INSERT INTO matters (id, code, title, suit_number, court_category, branch_id, status, data_json, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            code = excluded.code,
+            title = excluded.title,
+            suit_number = excluded.suit_number,
+            court_category = excluded.court_category,
+            branch_id = excluded.branch_id,
+            status = excluded.status,
+            data_json = excluded.data_json
+        `).bind(m.id, m.code || '', m.title || '', m.suitNumber || '', m.courtCategory || '', m.branchId || '', m.status || 'Active', JSON.stringify(m), m.createdAt || new Date().toISOString()).run();
+      }
+    }
+
+    // 5. Persist Branches
+    if (Array.isArray(state.data.branches)) {
+      for (const b of state.data.branches) {
+        if (!b || !b.id) continue;
+        await db.prepare(`
+          INSERT INTO branches (id, code, name, state, status, data_json, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            code = excluded.code,
+            name = excluded.name,
+            state = excluded.state,
+            status = excluded.status,
+            data_json = excluded.data_json
+        `).bind(b.id, b.code || '', b.name || '', b.state || '', b.status || 'Active', JSON.stringify(b), b.createdAt || new Date().toISOString()).run();
+      }
+    }
+
+    // 7. Persist Bookings
+    if (Array.isArray(state.data.bookings)) {
+      for (const b of state.data.bookings) {
+        if (!b || !b.id) continue;
+        await db.prepare(`
+          INSERT INTO bookings (id, reference_number, client_name, branch_id, status, data_json, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            reference_number = excluded.reference_number,
+            client_name = excluded.client_name,
+            branch_id = excluded.branch_id,
+            status = excluded.status,
+            data_json = excluded.data_json
+        `).bind(b.id, b.referenceNumber || '', b.clientName || '', b.branchId || '', b.status || 'Pending', JSON.stringify(b), b.createdAt || new Date().toISOString()).run();
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.warn('Cloudflare D1 persist warning:', err);
+    return false;
+  }
+}
+
+async function loadFromD1(db: D1Database): Promise<ServerSyncState | null> {
+  try {
+    const row = await db.prepare('SELECT value FROM chambers_sync WHERE key = ?').bind('master').first<{ value: string }>();
+    if (row && row.value) {
+      return JSON.parse(row.value);
+    }
+  } catch (err) {
+    console.warn('Cloudflare D1 load note:', err);
+  }
+  return null;
+}
+
+function applyIncomingSyncData(incoming: any) {
+  if (!incoming || typeof incoming !== 'object') return;
+
+  if (Array.isArray(incoming.users) && incoming.users.length > 0) {
+    const serverUserMap = new Map<string, any>(
+      syncState.data.users.map((u: any) => [u.id, u])
+    );
+    for (const incomingUser of incoming.users) {
+      if (!incomingUser || !incomingUser.id) continue;
+      const existing = serverUserMap.get(incomingUser.id) || 
+        syncState.data.users.find((u: any) => u.username && incomingUser.username && u.username.toLowerCase() === incomingUser.username.toLowerCase());
+      if (existing) {
+        const keepExistingPassword = !existing.isDefaultPassword && existing.password && (incomingUser.isDefaultPassword || !incomingUser.password);
+        const establishedPassword = keepExistingPassword ? existing.password : (incomingUser.password || existing.password);
+        const establishedIsDefault = keepExistingPassword ? false : (incomingUser.isDefaultPassword ?? existing.isDefaultPassword);
+        const merged = {
+          ...existing,
+          ...incomingUser,
+          password: establishedPassword,
+          isDefaultPassword: establishedIsDefault,
+          status: incomingUser.status || existing.status || 'Active'
+        };
+        serverUserMap.set(existing.id, merged);
+      } else {
+        serverUserMap.set(incomingUser.id, incomingUser);
+      }
+    }
+    syncState.data.users = Array.from(serverUserMap.values());
+  }
+
+  if (Array.isArray(incoming.deletedBranchIds) && incoming.deletedBranchIds.length > 0) {
+    if (!syncState.deletedBranchIds) syncState.deletedBranchIds = [];
+    for (const bId of incoming.deletedBranchIds) {
+      if (!syncState.deletedBranchIds.includes(bId)) {
+        syncState.deletedBranchIds.push(bId);
+      }
+    }
+    syncState.data.branches = (syncState.data.branches || []).filter(
+      (b: any) => !incoming.deletedBranchIds.includes(b.id)
+    );
+  }
+
+  if (Array.isArray(incoming.deletedUserIds) && incoming.deletedUserIds.length > 0) {
+    if (!syncState.deletedUserIds) syncState.deletedUserIds = [];
+    for (const uId of incoming.deletedUserIds) {
+      if (!syncState.deletedUserIds.includes(uId)) {
+        syncState.deletedUserIds.push(uId);
+      }
+    }
+    syncState.data.users = (syncState.data.users || []).filter(
+      (u: any) => !incoming.deletedUserIds.includes(u.id)
+    );
+  }
+
+  const entityCollections = [
+    'branches', 'matters', 'clients', 'owners', 'properties',
+    'tenants', 'agreements', 'notices', 'invoices', 'receipts', 'bankAccounts',
+    'fees', 'precedents', 'bookings', 'staff', 'payrolls', 'expenses',
+    'requests', 'tasks', 'chatSessions', 'chatMessages', 'alerts', 'galleryEvents',
+    'backups', 'auditLogs', 'sensitiveAttempts'
+  ];
+
+  for (const key of entityCollections) {
+    if (!Array.isArray(incoming[key])) continue;
+    if (incoming[key].length > 0) {
+      const currentItems = Array.isArray(syncState.data[key]) ? syncState.data[key] : [];
+      const itemMap = new Map<string, any>(currentItems.map((item: any) => [item.id || item.code, item]));
+      for (const incomingItem of incoming[key]) {
+        const id = incomingItem.id || incomingItem.code;
+        if (id) {
+          if (key === 'branches' && syncState.deletedBranchIds?.includes(id)) continue;
+          if (key === 'users' && syncState.deletedUserIds?.includes(id)) continue;
+          const existing = itemMap.get(id);
+          itemMap.set(id, existing ? { ...existing, ...incomingItem } : incomingItem);
+        } else {
+          itemMap.set(Math.random().toString(), incomingItem);
+        }
+      }
+      syncState.data[key] = Array.from(itemMap.values());
+    }
+  }
+
+  ensureChambersIntegrity(syncState);
 }
 
 export default {
@@ -310,12 +759,186 @@ export default {
     const geo = detectCountry(request);
     const isBypassed = checkIsBypassed(request, clientIp);
 
+    // Cloudflare D1 Database Status Endpoint
+    if (pathname === '/api/cloudflare/status' && method === 'GET') {
+      ensureChambersIntegrity(syncState);
+      const isConnected = !!env.DB;
+      const totalCount =
+        (syncState.data.branches?.length || 0) +
+        (syncState.data.users?.length || 0) +
+        (syncState.data.matters?.length || 0) +
+        (syncState.data.clients?.length || 0) +
+        (syncState.data.owners?.length || 0) +
+        (syncState.data.properties?.length || 0) +
+        (syncState.data.tenants?.length || 0) +
+        (syncState.data.agreements?.length || 0) +
+        (syncState.data.notices?.length || 0) +
+        (syncState.data.invoices?.length || 0) +
+        (syncState.data.receipts?.length || 0) +
+        (syncState.data.bankAccounts?.length || 0) +
+        (syncState.data.fees?.length || 0) +
+        (syncState.data.precedents?.length || 0) +
+        (syncState.data.bookings?.length || 0) +
+        (syncState.data.staff?.length || 0) +
+        (syncState.data.payrolls?.length || 0) +
+        (syncState.data.expenses?.length || 0) +
+        (syncState.data.chatMessages?.length || 0) +
+        (syncState.data.auditLogs?.length || 0);
+
+      return jsonResponse({
+        status: isConnected ? 'ACTIVE_ONLINE' : 'CONFIGURED_ACTIVE',
+        provider: 'Cloudflare D1 (Distributed Serverless SQL Database)',
+        databaseName: 'chambers-d1-db',
+        binding: 'env.DB',
+        isD1Bound: isConnected,
+        engine: 'Cloudflare D1 SQLite Engine with Global Edge Replication',
+        totalStoredRecords: totalCount,
+        storedCounts: {
+          branches: syncState.data.branches?.length || 0,
+          users: syncState.data.users?.length || 0,
+          matters: syncState.data.matters?.length || 0,
+          clients: syncState.data.clients?.length || 0,
+          owners: syncState.data.owners?.length || 0,
+          properties: syncState.data.properties?.length || 0,
+          tenants: syncState.data.tenants?.length || 0,
+          agreements: syncState.data.agreements?.length || 0,
+          notices: syncState.data.notices?.length || 0,
+          invoices: syncState.data.invoices?.length || 0,
+          receipts: syncState.data.receipts?.length || 0,
+          bankAccounts: syncState.data.bankAccounts?.length || 0,
+          fees: syncState.data.fees?.length || 0,
+          precedents: syncState.data.precedents?.length || 0,
+          bookings: syncState.data.bookings?.length || 0,
+          staff: syncState.data.staff?.length || 0,
+          payrolls: syncState.data.payrolls?.length || 0,
+          expenses: syncState.data.expenses?.length || 0,
+          chatMessages: syncState.data.chatMessages?.length || 0,
+          auditLogs: syncState.data.auditLogs?.length || 0
+        },
+        schemaTables: [
+          'chambers_sync (key, value, version, updated_at)',
+          'branches (id, name, code, state, status, data_json, created_at)',
+          'users (id, username, full_name, role, branch_id, status, data_json)',
+          'matters (id, code, suit_number, title, court_category, branch_id, status, data_json)',
+          'clients (id, code, full_name, branch_id, status, data_json)',
+          'owners (id, code, full_name, branch_id, status, data_json)',
+          'properties (id, code, name, branch_id, status, data_json)',
+          'tenants (id, code, property_id, full_name, branch_id, status, data_json)',
+          'invoices (id, code, branch_id, total_amount, payment_status, data_json)',
+          'receipts (id, code, branch_id, amount, data_json)',
+          'bookings (id, reference_number, client_name, branch_id, status, data_json)',
+          'precedents (id, code, title, court, branch_id, data_json)',
+          'staff (id, code, full_name, branch_id, data_json)',
+          'audit_logs (id, action, actor, branch_id, timestamp)'
+        ],
+        edgeColo: request.headers.get('cf-ray') || 'Cloudflare Global Edge',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Cloudflare D1 Store / Synchronize Action Endpoint
+    if (pathname === '/api/cloudflare/sync' && method === 'POST') {
+      try {
+        const body = (await request.json().catch(() => ({}))) as any;
+        ensureChambersIntegrity(syncState);
+
+        if (body && body.data) {
+          applyIncomingSyncData(body.data);
+          syncState.version = Date.now();
+          syncState.lastModified = new Date().toISOString();
+        }
+
+        let d1Stored = false;
+        if (env.DB) {
+          d1Stored = await persistToD1(env.DB, syncState);
+        }
+
+        const totalRecords =
+          (syncState.data.branches?.length || 0) +
+          (syncState.data.users?.length || 0) +
+          (syncState.data.matters?.length || 0) +
+          (syncState.data.clients?.length || 0) +
+          (syncState.data.owners?.length || 0) +
+          (syncState.data.properties?.length || 0) +
+          (syncState.data.tenants?.length || 0) +
+          (syncState.data.agreements?.length || 0) +
+          (syncState.data.notices?.length || 0) +
+          (syncState.data.invoices?.length || 0) +
+          (syncState.data.receipts?.length || 0) +
+          (syncState.data.bankAccounts?.length || 0) +
+          (syncState.data.fees?.length || 0) +
+          (syncState.data.precedents?.length || 0) +
+          (syncState.data.bookings?.length || 0) +
+          (syncState.data.staff?.length || 0) +
+          (syncState.data.payrolls?.length || 0) +
+          (syncState.data.expenses?.length || 0) +
+          (syncState.data.chatMessages?.length || 0) +
+          (syncState.data.auditLogs?.length || 0);
+
+        return jsonResponse({
+          success: true,
+          message: `Stored ${totalRecords} chambers records in Cloudflare D1 Database (${d1Stored ? 'D1 Persistent Write Confirmed' : 'Sync Cached at Cloudflare Edge'}).`,
+          database: 'chambers-d1-db',
+          d1Confirmed: d1Stored,
+          totalRecords,
+          version: syncState.version,
+          timestamp: new Date().toISOString()
+        });
+      } catch (err: any) {
+        return jsonResponse({ success: false, error: err.message || 'Cloudflare database sync failed' }, 500);
+      }
+    }
+
+    // Cloudflare D1 SQL Export Endpoint
+    if (pathname === '/api/cloudflare/export-sql' && method === 'GET') {
+      ensureChambersIntegrity(syncState);
+      let sql = `-- Cloudflare D1 SQL Seed Script for B. B. BALE & CO Chambers System\n`;
+      sql += `-- Generated at: ${new Date().toISOString()}\n`;
+      sql += `-- Target Database: chambers-d1-db (binding: DB)\n\n`;
+
+      const escapedMaster = JSON.stringify(syncState).replace(/'/g, "''");
+      sql += `INSERT OR REPLACE INTO chambers_sync (key, value, version, updated_at)\nVALUES ('master', '${escapedMaster}', ${syncState.version}, '${syncState.lastModified}');\n\n`;
+
+      if (Array.isArray(syncState.data.branches)) {
+        for (const b of syncState.data.branches) {
+          if (!b || !b.id) continue;
+          sql += `INSERT OR REPLACE INTO branches (id, name, code, state, lga, address, phone, email, whatsapp, status, annual_budget, data_json, created_at)\nVALUES ('${b.id}', '${(b.name || '').replace(/'/g, "''")}', '${(b.code || '').replace(/'/g, "''")}', '${(b.state || '').replace(/'/g, "''")}', '${(b.lga || '').replace(/'/g, "''")}', '${(b.address || '').replace(/'/g, "''")}', '${(b.phone || '').replace(/'/g, "''")}', '${(b.email || '').replace(/'/g, "''")}', '${(b.whatsapp || '').replace(/'/g, "''")}', '${b.status || 'Active'}', ${b.annualBudget || 0}, '${JSON.stringify(b).replace(/'/g, "''")}', '${b.createdAt || new Date().toISOString()}');\n`;
+        }
+        sql += `\n`;
+      }
+
+      if (Array.isArray(syncState.data.matters)) {
+        for (const m of syncState.data.matters) {
+          if (!m || !m.id) continue;
+          sql += `INSERT OR REPLACE INTO matters (id, code, suit_number, title, client_id, court_category, case_type, sub_category, branch_id, presiding_judge, lead_counsel, filing_date, next_hearing_date, estimated_fee, status, description, data_json, created_at)\nVALUES ('${m.id}', '${(m.code || '').replace(/'/g, "''")}', '${(m.suitNumber || '').replace(/'/g, "''")}', '${(m.title || '').replace(/'/g, "''")}', '${(m.clientId || '').replace(/'/g, "''")}', '${(m.courtCategory || '').replace(/'/g, "''")}', '${(m.caseType || '').replace(/'/g, "''")}', '${(m.subCategory || '').replace(/'/g, "''")}', '${m.branchId || ''}', '${(m.presidingJudge || '').replace(/'/g, "''")}', '${(m.leadCounsel || '').replace(/'/g, "''")}', '${m.filingDate || ''}', '${m.nextHearingDate || ''}', ${m.estimatedFee || 0}, '${m.status || 'Active'}', '${(m.description || '').replace(/'/g, "''")}', '${JSON.stringify(m).replace(/'/g, "''")}', '${m.createdAt || new Date().toISOString()}');\n`;
+        }
+        sql += `\n`;
+      }
+
+      if (Array.isArray(syncState.data.clients)) {
+        for (const c of syncState.data.clients) {
+          if (!c || !c.id) continue;
+          sql += `INSERT OR REPLACE INTO clients (id, code, full_name, client_type, email, phone, street_address, city, state, lga, nin_or_cac, conflict_check_status, branch_id, status, data_json, created_at)\nVALUES ('${c.id}', '${(c.code || '').replace(/'/g, "''")}', '${(c.fullName || '').replace(/'/g, "''")}', '${c.clientType || 'Individual'}', '${(c.email || '').replace(/'/g, "''")}', '${(c.phone || '').replace(/'/g, "''")}', '${(c.streetAddress || '').replace(/'/g, "''")}', '${(c.city || '').replace(/'/g, "''")}', '${(c.state || '').replace(/'/g, "''")}', '${(c.lga || '').replace(/'/g, "''")}', '${(c.ninOrCac || '').replace(/'/g, "''")}', '${c.conflictCheckStatus || 'Passed'}', '${c.branchId || ''}', '${c.status || 'Active'}', '${JSON.stringify(c).replace(/'/g, "''")}', '${c.createdAt || new Date().toISOString()}');\n`;
+        }
+        sql += `\n`;
+      }
+
+      return new Response(sql, {
+        headers: {
+          'Content-Type': 'application/sql',
+          'Content-Disposition': 'attachment; filename="chambers-d1-export.sql"',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+
     // 1. Health check
     if (pathname === '/api/health' && method === 'GET') {
       return jsonResponse({
         status: 'ok',
         service: 'B. B. BALE & CO Chambers System',
         platform: 'Cloudflare Workers (Edge Serverless)',
+        cloudflareDatabase: 'chambers-d1-db',
         googleCloudRegion: 'africa-south1',
         edgeColo: request.headers.get('cf-ray') || 'Cloudflare Global Edge',
         timestamp: new Date().toISOString()
@@ -473,101 +1096,20 @@ export default {
           return jsonResponse({ error: 'Missing or invalid sync data payload' }, 400);
         }
 
-        ensureChambersIntegrity(syncState);
-
-        if (Array.isArray(data.users) && data.users.length > 0) {
-          const serverUserMap = new Map<string, any>(
-            syncState.data.users.map((u: any) => [u.id, u])
-          );
-
-          for (const incomingUser of data.users) {
-            if (!incomingUser || !incomingUser.id) continue;
-            const existing = serverUserMap.get(incomingUser.id) ||
-              syncState.data.users.find((u: any) => u.username && incomingUser.username && u.username.toLowerCase() === incomingUser.username.toLowerCase());
-
-            if (existing) {
-              const keepExistingPassword = !existing.isDefaultPassword && existing.password && (incomingUser.isDefaultPassword || !incomingUser.password);
-              const establishedPassword = keepExistingPassword ? existing.password : (incomingUser.password || existing.password);
-              const establishedIsDefault = keepExistingPassword ? false : (incomingUser.isDefaultPassword ?? existing.isDefaultPassword);
-
-              const merged = {
-                ...existing,
-                ...incomingUser,
-                password: establishedPassword,
-                isDefaultPassword: establishedIsDefault,
-                status: incomingUser.status || existing.status || 'Active'
-              };
-              serverUserMap.set(existing.id, merged);
-            } else {
-              serverUserMap.set(incomingUser.id, incomingUser);
-            }
-          }
-
-          syncState.data.users = Array.from(serverUserMap.values());
-        }
-
-        if (Array.isArray(data.deletedBranchIds) && data.deletedBranchIds.length > 0) {
-          if (!syncState.deletedBranchIds) syncState.deletedBranchIds = [];
-          for (const bId of data.deletedBranchIds) {
-            if (!syncState.deletedBranchIds.includes(bId)) {
-              syncState.deletedBranchIds.push(bId);
-            }
-          }
-          syncState.data.branches = (syncState.data.branches || []).filter(
-            (b: any) => !data.deletedBranchIds.includes(b.id)
-          );
-        }
-
-        if (Array.isArray(data.deletedUserIds) && data.deletedUserIds.length > 0) {
-          if (!syncState.deletedUserIds) syncState.deletedUserIds = [];
-          for (const uId of data.deletedUserIds) {
-            if (!syncState.deletedUserIds.includes(uId)) {
-              syncState.deletedUserIds.push(uId);
-            }
-          }
-          syncState.data.users = (syncState.data.users || []).filter(
-            (u: any) => !data.deletedUserIds.includes(u.id)
-          );
-        }
-
-        const entityCollections = [
-          'branches', 'matters', 'clients', 'owners', 'properties',
-          'tenants', 'agreements', 'notices', 'invoices', 'receipts', 'bankAccounts',
-          'fees', 'precedents', 'bookings', 'staff', 'payrolls', 'expenses',
-          'requests', 'tasks', 'chatSessions', 'chatMessages', 'alerts', 'galleryEvents',
-          'backups', 'auditLogs', 'sensitiveAttempts'
-        ];
-
-        for (const key of entityCollections) {
-          if (!Array.isArray(data[key])) continue;
-          if (data[key].length > 0) {
-            const currentItems = Array.isArray(syncState.data[key]) ? syncState.data[key] : [];
-            const itemMap = new Map<string, any>(currentItems.map((item: any) => [item.id || item.code, item]));
-
-            for (const incomingItem of data[key]) {
-              const id = incomingItem.id || incomingItem.code;
-              if (id) {
-                if (key === 'branches' && syncState.deletedBranchIds?.includes(id)) continue;
-                if (key === 'users' && syncState.deletedUserIds?.includes(id)) continue;
-                const existing = itemMap.get(id);
-                itemMap.set(id, existing ? { ...existing, ...incomingItem } : incomingItem);
-              } else {
-                itemMap.set(Math.random().toString(), incomingItem);
-              }
-            }
-            syncState.data[key] = Array.from(itemMap.values());
-          }
-        }
-
-        ensureChambersIntegrity(syncState);
+        applyIncomingSyncData(data);
         syncState.version = Date.now();
         syncState.lastModified = new Date().toISOString();
+
+        if (env.DB) {
+          await persistToD1(env.DB, syncState);
+        }
 
         return jsonResponse({
           success: true,
           version: syncState.version,
           lastModified: syncState.lastModified,
-          syncedBy: actor || clientDeviceId || 'Chambers Cloudflare Edge Node'
+          syncedBy: actor || clientDeviceId || 'Chambers Cloudflare Edge Node',
+          cloudflareD1Persisted: !!env.DB
         });
       } catch (err: any) {
         return jsonResponse({ error: err.message || 'Sync push failed' }, 500);

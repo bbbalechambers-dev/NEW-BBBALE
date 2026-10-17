@@ -100,7 +100,7 @@ export const InternalLayout: React.FC<InternalLayoutProps> = ({ onReturnToPublic
     { id: 'gallery', label: 'Branch Event Gallery', icon: Camera, allowed: isAdministrator },
     { id: 'backups', label: 'Hard-Copy Backups', icon: Archive, allowed: !isAccountOfficer },
     { id: 'branches', label: 'Branch Network', icon: Shield, allowed: isPrincipalPartner },
-    { id: 'google-cloud-africa', label: 'Cloud Africa & Security', icon: Server, allowed: !isAccountOfficer },
+    { id: 'google-cloud-africa', label: 'Cloudflare D1 & Cloud Security', icon: Server, allowed: !isAccountOfficer },
     { id: 'live-chats', label: 'Live Chat Inbox', icon: MessageSquare, allowed: !isAccountOfficer },
     { id: 'audit-alerts', label: 'Alerts & Audit Trail', icon: Bell, allowed: true }
   ].filter(item => item.allowed);

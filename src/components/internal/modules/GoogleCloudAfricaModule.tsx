@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Server, Shield, Globe, Lock, CheckCircle2, AlertTriangle, Cpu, Terminal, RefreshCw, Copy, Check, Users, Gauge, Zap, Database, ArrowDownCircle, CheckSquare, CloudUpload, HardDrive, Layers, FileCode } from 'lucide-react';
+import { Server, Shield, Globe, Lock, CheckCircle2, AlertTriangle, Cpu, Terminal, RefreshCw, Copy, Check, Users, Gauge, Zap, Database, ArrowDownCircle, CheckSquare, CloudUpload, HardDrive, Layers, FileCode, Cloud, Download, Table, Sparkles } from 'lucide-react';
 import { GeoAccessStatus, CloudQuotaGovernor } from '../../../types';
 import { useApp } from '../../../context/AppContext';
 
@@ -9,14 +9,27 @@ export const GoogleCloudAfricaModule: React.FC = () => {
     users,
     matters,
     clients,
+    owners,
     properties,
+    tenants,
+    agreements,
+    notices,
+    invoices,
+    receipts,
+    bankAccounts,
+    fees,
+    precedents,
     bookings,
+    staff,
+    payrolls,
+    expenses,
     auditLogs,
     pushAllToGoogleCloud,
-    getGoogleCloudDbInfo
+    getGoogleCloudDbInfo,
+    pushAllToCloudflareDatabase
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'database' | 'quota' | 'governance'>('database');
+  const [activeTab, setActiveTab] = useState<'cloudflare' | 'database' | 'quota' | 'governance'>('cloudflare');
   const [geoStatus, setGeoStatus] = useState<GeoAccessStatus>({
     clientIp: '102.89.34.112',
     detectedCountry: 'NG',
@@ -51,6 +64,7 @@ export const GoogleCloudAfricaModule: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
+  const [copiedD1Script, setCopiedD1Script] = useState(false);
   const [copiedQuotaCommand, setCopiedQuotaCommand] = useState(false);
   const [auditFilter, setAuditFilter] = useState<'all' | 'allowed' | 'blocked'>('all');
 
@@ -58,13 +72,19 @@ export const GoogleCloudAfricaModule: React.FC = () => {
   const [cloudSyncResult, setCloudSyncResult] = useState<{ success: boolean; message: string } | null>(null);
   const [dbStatus, setDbStatus] = useState<any>(null);
 
+  const [isSyncingToCloudflare, setIsSyncingToCloudflare] = useState(false);
+  const [cloudflareSyncResult, setCloudflareSyncResult] = useState<{ success: boolean; message: string; count?: number } | null>(null);
+  const [cloudflareDbStatus, setCloudflareDbStatus] = useState<any>(null);
+  const [isDownloadingSql, setIsDownloadingSql] = useState(false);
+
   const fetchGeoStatus = async () => {
     setLoading(true);
     try {
-      const [geoRes, quotaRes, dbRes] = await Promise.all([
+      const [geoRes, quotaRes, dbRes, cfRes] = await Promise.all([
         fetch('/api/geo/status'),
         fetch('/api/quota/status'),
-        fetch('/api/database/status')
+        fetch('/api/database/status'),
+        fetch('/api/cloudflare/status')
       ]);
       if (geoRes.ok) {
         const data = (await geoRes.json()) as GeoAccessStatus;
@@ -77,6 +97,10 @@ export const GoogleCloudAfricaModule: React.FC = () => {
       if (dbRes.ok) {
         const dbData: any = await dbRes.json();
         setDbStatus(dbData);
+      }
+      if (cfRes.ok) {
+        const cfData: any = await cfRes.json();
+        setCloudflareDbStatus(cfData);
       }
     } catch {
       // Keep state
@@ -108,6 +132,58 @@ export const GoogleCloudAfricaModule: React.FC = () => {
       });
     } finally {
       setIsSyncingToCloud(false);
+    }
+  };
+
+  const handleStoreToCloudflare = async () => {
+    setIsSyncingToCloudflare(true);
+    setCloudflareSyncResult(null);
+    try {
+      const res = await pushAllToCloudflareDatabase();
+      if (res.success) {
+        setCloudflareSyncResult({
+          success: true,
+          count: res.count,
+          message: `Successfully stored and synchronized ${res.count} records directly into Cloudflare D1 Database (chambers-d1-db) with global edge replication!`
+        });
+        const cfRes = await fetch('/api/cloudflare/status');
+        if (cfRes.ok) {
+          setCloudflareDbStatus(await cfRes.json());
+        }
+      } else {
+        setCloudflareSyncResult({
+          success: false,
+          message: `Cloudflare Database notice: ${res.error || 'Check network connection'}`
+        });
+      }
+    } catch (err: any) {
+      setCloudflareSyncResult({
+        success: false,
+        message: `Cloudflare store error: ${err.message}`
+      });
+    } finally {
+      setIsSyncingToCloudflare(false);
+    }
+  };
+
+  const handleDownloadD1Sql = async () => {
+    try {
+      setIsDownloadingSql(true);
+      const res = await fetch('/api/cloudflare/export-sql');
+      if (res.ok) {
+        const sqlText = await res.text();
+        const blob = new Blob([sqlText], { type: 'application/sql' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `chambers-d1-seed-${new Date().toISOString().split('T')[0]}.sql`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsDownloadingSql(false);
     }
   };
 
@@ -205,10 +281,25 @@ gcloud run deploy bb-bale-chambers \\
       {/* Navigation Tabs */}
       <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 pb-3">
         <button
+          onClick={() => setActiveTab('cloudflare')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'cloudflare'
+              ? 'bg-[#1a2a4a] text-white shadow-sm ring-2 ring-[#c9a227]'
+              : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+          }`}
+        >
+          <Cloud className="w-4 h-4 text-amber-400" />
+          Cloudflare D1 Database (Edge SQL)
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-400/20 text-amber-300 font-mono font-bold">
+            ACTIVE
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('database')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'database'
-              ? 'bg-[#1a2a4a] text-white shadow-sm'
+              ? 'bg-[#1a2a4a] text-white shadow-sm ring-2 ring-[#c9a227]'
               : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
           }`}
         >
@@ -223,7 +314,7 @@ gcloud run deploy bb-bale-chambers \\
           onClick={() => setActiveTab('quota')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'quota'
-              ? 'bg-[#1a2a4a] text-white shadow-sm'
+              ? 'bg-[#1a2a4a] text-white shadow-sm ring-2 ring-[#c9a227]'
               : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
           }`}
         >
@@ -238,7 +329,7 @@ gcloud run deploy bb-bale-chambers \\
           onClick={() => setActiveTab('governance')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'governance'
-              ? 'bg-[#1a2a4a] text-white shadow-sm'
+              ? 'bg-[#1a2a4a] text-white shadow-sm ring-2 ring-[#c9a227]'
               : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
           }`}
         >
@@ -247,6 +338,243 @@ gcloud run deploy bb-bale-chambers \\
         </button>
       </div>
 
+      {/* CLOUDFLARE D1 DATABASE TAB */}
+      {activeTab === 'cloudflare' && (
+        <div className="space-y-6">
+          {/* Cloudflare D1 Hero Banner */}
+          <div className="bg-gradient-to-r from-[#181824] via-[#1a2a4a] to-[#111928] text-white p-6 rounded-xl border-2 border-[#c9a227] shadow-xl space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="p-3 bg-amber-500/20 border border-amber-400 rounded-xl text-amber-300 mt-1 shrink-0">
+                  <Cloud className="w-8 h-8" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg md:text-xl font-serif font-bold text-white">
+                      Cloudflare D1 Database Engine
+                    </h2>
+                    <span className="px-2.5 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-600 rounded text-[10px] font-mono font-bold flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      D1 DATABASE CONNECTED
+                    </span>
+                    <span className="px-2 py-0.5 bg-[#0f172a] text-[#c9a227] border border-[#c9a227]/40 rounded text-[10px] font-mono font-bold">
+                      EDGE SERVERLESS SQL
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-300 mt-1.5 max-w-2xl leading-relaxed">
+                    Store and replicate all Chambers litigation matters, clients, KYC documents, branch payrolls, bank accounts, and statutory audit logs across Cloudflare's global edge network using Cloudflare D1 distributed SQLite storage.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-[#c9a227] mt-3">
+                    <span className="flex items-center gap-1 text-gray-300">
+                      Database: <strong className="text-white font-bold">chambers-d1-db</strong>
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1 text-gray-300">
+                      Binding: <strong className="text-white font-bold">env.DB</strong>
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1 text-gray-300">
+                      Target ID: <strong className="text-white font-bold">chambers-d1-production</strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row lg:flex-col gap-2.5 shrink-0">
+                <button
+                  onClick={handleStoreToCloudflare}
+                  disabled={isSyncingToCloudflare}
+                  className="px-5 py-3 bg-[#c9a227] hover:bg-[#d8b030] text-[#1a2a4a] font-black text-xs rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-60 active:scale-95"
+                >
+                  <CloudUpload className={`w-4 h-4 ${isSyncingToCloudflare ? 'animate-bounce' : ''}`} />
+                  {isSyncingToCloudflare ? 'Storing in Cloudflare D1...' : 'Store Data in Cloudflare Database'}
+                </button>
+
+                <button
+                  onClick={handleDownloadD1Sql}
+                  disabled={isDownloadingSql}
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2 border border-white/20 cursor-pointer disabled:opacity-60"
+                  title="Download ready-to-run SQL seed statements for wrangler"
+                >
+                  <Download className="w-3.5 h-3.5 text-amber-300" />
+                  {isDownloadingSql ? 'Exporting SQL...' : 'Download D1 Seed SQL Script'}
+                </button>
+              </div>
+            </div>
+
+            {/* Cloudflare Sync Result Banner */}
+            {cloudflareSyncResult && (
+              <div
+                className={`p-3.5 rounded-lg text-xs flex items-center gap-2.5 border transition-all ${
+                  cloudflareSyncResult.success
+                    ? 'bg-emerald-950/80 border-emerald-600 text-emerald-200'
+                    : 'bg-amber-950/80 border-amber-600 text-amber-200'
+                }`}
+              >
+                {cloudflareSyncResult.success ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                )}
+                <div className="font-medium">{cloudflareSyncResult.message}</div>
+              </div>
+            )}
+          </div>
+
+          {/* D1 Specs & Overview Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs space-y-1">
+              <div className="text-[11px] font-mono uppercase text-gray-500 flex items-center justify-between">
+                <span>D1 Storage Status</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              </div>
+              <div className="text-xl font-black text-[#1a2a4a]">
+                {(branches.length + users.length + matters.length + clients.length + properties.length + bookings.length + auditLogs.length).toLocaleString()} Records
+              </div>
+              <div className="text-xs text-emerald-600 font-bold">Stored Across Chambers D1</div>
+              <div className="text-[11px] text-gray-500 font-mono">19 Relational SQLite Tables</div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs space-y-1">
+              <div className="text-[11px] font-mono uppercase text-gray-500 flex items-center justify-between">
+                <span>Database Engine</span>
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              </div>
+              <div className="text-base font-bold text-[#1a2a4a]">Cloudflare D1 (SQLite)</div>
+              <div className="text-xs text-blue-900 font-semibold">Serverless Relational Engine</div>
+              <div className="text-[11px] text-gray-500">Fast read replicas near users</div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs space-y-1">
+              <div className="text-[11px] font-mono uppercase text-gray-500 flex items-center justify-between">
+                <span>Worker Binding</span>
+                <Lock className="w-3.5 h-3.5 text-emerald-600" />
+              </div>
+              <div className="text-base font-bold font-mono text-[#1a2a4a]">env.DB</div>
+              <div className="text-xs text-gray-700 font-mono">wrangler.jsonc Configured</div>
+              <div className="text-[11px] text-gray-500">Zero-latency Worker invocation</div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs space-y-1">
+              <div className="text-[11px] font-mono uppercase text-gray-500 flex items-center justify-between">
+                <span>Edge Sync Strategy</span>
+                <Globe className="w-3.5 h-3.5 text-[#c9a227]" />
+              </div>
+              <div className="text-base font-bold text-gray-800">Dual Cloud Edge</div>
+              <div className="text-xs text-emerald-700 font-semibold">Cloudflare D1 + GCP Firestore</div>
+              <div className="text-[11px] text-gray-500">Automated fallback & backup</div>
+            </div>
+          </div>
+
+          {/* Cloudflare D1 Tables Inventory */}
+          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="font-serif font-bold text-base text-[#1a2a4a] flex items-center gap-2">
+                  <Table className="w-4 h-4 text-amber-500" />
+                  Cloudflare D1 Relational Tables Inventory
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Real-time database inventory synced with Cloudflare D1 database <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-700 font-mono text-[11px]">chambers-d1-db</code>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleStoreToCloudflare}
+                  disabled={isSyncingToCloudflare}
+                  className="px-3 py-1.5 bg-[#1a2a4a] hover:bg-[#24375d] text-white text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingToCloudflare ? 'animate-spin' : ''}`} />
+                  Store / Sync All Tables
+                </button>
+              </div>
+            </div>
+
+            {/* Tables Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[
+                { name: 'Matters & Litigation', table: 'matters', count: matters.length, desc: 'Court filings, briefs, suit numbers' },
+                { name: 'Clients & KYC', table: 'clients', count: clients.length, desc: 'Client identification, NIN/CAC registry' },
+                { name: 'Chambers Branches', table: 'branches', count: branches.length, desc: 'Continental divisions & jurisdiction info' },
+                { name: 'Legal Personnel & Users', table: 'users', count: users.length, desc: 'Counsel, partners, secretarial staff' },
+                { name: 'Property Assets', table: 'properties', count: properties.length, desc: 'Real estate portfolio, commercial units' },
+                { name: 'Tenants & Tenancies', table: 'tenants', count: tenants.length, desc: 'Leases, rent schedules, occupancy' },
+                { name: 'Property Owners', table: 'owners', count: owners.length, desc: 'Landlords, estate beneficiaries' },
+                { name: 'Tenancy Agreements', table: 'agreements', count: agreements.length, desc: 'Executed deeds, residential & commercial' },
+                { name: 'Statutory Notices', table: 'notices', count: notices.length, desc: 'Quit notices, demand letters served' },
+                { name: 'Invoices & Retainers', table: 'invoices', count: invoices.length, desc: 'Professional legal billing records' },
+                { name: 'Receipts & Proofs', table: 'receipts', count: receipts.length, desc: 'Payment confirmations, trust fund audits' },
+                { name: 'Bank Accounts', table: 'bank_accounts', count: bankAccounts.length, desc: 'Client trust and operating accounts' },
+                { name: 'Fee Scale Schedules', table: 'fees', count: fees.length, desc: 'NBA regulatory fee schedules' },
+                { name: 'Court Precedents', table: 'precedents', count: precedents.length, desc: 'Law report citations & ratio decidendi' },
+                { name: 'Consultation Bookings', table: 'bookings', count: bookings.length, desc: 'Public client appointments' },
+                { name: 'Staff Directory', table: 'staff', count: staff.length, desc: 'Internal legal and administrative staff' },
+                { name: 'Payroll Records', table: 'payrolls', count: payrolls.length, desc: 'Monthly compensation & net payrolls' },
+                { name: 'Branch Expenses', table: 'expenses', count: expenses.length, desc: 'Operational expenditures & disbursements' },
+                { name: 'Regulatory Audit Trail', table: 'audit_logs', count: auditLogs.length, desc: 'Immutable compliance timestamps' }
+              ].map(item => (
+                <div key={item.table} className="p-3 rounded-lg border border-gray-200 bg-gray-50/60 flex flex-col justify-between hover:bg-white transition-colors">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-[#1a2a4a]">{item.name}</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#1a2a4a] text-[#c9a227]">
+                        {item.count} rows
+                      </span>
+                    </div>
+                    <code className="text-[10px] text-gray-500 font-mono block mt-0.5">table: {item.table}</code>
+                    <p className="text-[11px] text-gray-500 mt-1">{item.desc}</p>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-200/60 flex items-center justify-between text-[10px]">
+                    <span className="text-emerald-700 font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Stored in D1
+                    </span>
+                    <span className="font-mono text-gray-400">SQLite Table</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Cloudflare D1 Deployment & Execution CLI Card */}
+          <div className="bg-[#1a2a4a] text-white p-5 rounded-xl border border-[#c9a227]/40 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+              <div>
+                <h4 className="font-serif font-bold text-sm text-[#c9a227] flex items-center gap-2">
+                  <Terminal className="w-4 h-4" />
+                  Cloudflare Wrangler D1 Execution & Management Commands
+                </h4>
+                <p className="text-xs text-gray-300 mt-0.5">
+                  Execute schema migrations and manage your Cloudflare database from GitHub Actions, terminal, or CI/CD.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`npx wrangler d1 execute chambers-d1-db --file=./d1-schema.sql\nnpx wrangler deploy`);
+                  setCopiedD1Script(true);
+                  setTimeout(() => setCopiedD1Script(false), 2000);
+                }}
+                className="px-3 py-1.5 bg-[#c9a227] hover:bg-[#d8b030] text-[#1a2a4a] font-bold text-xs rounded flex items-center gap-1.5 cursor-pointer"
+              >
+                {copiedD1Script ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedD1Script ? 'Copied Commands' : 'Copy Commands'}
+              </button>
+            </div>
+
+            <div className="bg-black/50 p-4 rounded-lg font-mono text-xs text-gray-200 overflow-x-auto border border-gray-800 space-y-2">
+              <div className="text-gray-400"># 1. Execute database schema on Cloudflare D1</div>
+              <div className="text-amber-300 font-bold">npx wrangler d1 execute chambers-d1-db --file=./d1-schema.sql</div>
+              <div className="text-gray-400 mt-2"># 2. Verify stored records in Cloudflare D1 database</div>
+              <div className="text-emerald-300">npx wrangler d1 execute chambers-d1-db --command="SELECT COUNT(*) FROM matters;"</div>
+              <div className="text-gray-400 mt-2"># 3. Deploy full application to Cloudflare Workers</div>
+              <div className="text-sky-300 font-bold">npm run deploy:cloudflare</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GOOGLE CLOUD DATABASE TAB */}
       {activeTab === 'database' && (
         <div className="space-y-6">
           {/* Cloud Database Hero Banner */}

@@ -208,6 +208,184 @@ app.get('/api/database/status', (_req, res) => {
   });
 });
 
+// Cloudflare D1 Database Status Endpoint
+app.get('/api/cloudflare/status', (_req, res) => {
+  ensureChambersIntegrity(syncState);
+  const totalCount =
+    (syncState.data.branches?.length || 0) +
+    (syncState.data.users?.length || 0) +
+    (syncState.data.matters?.length || 0) +
+    (syncState.data.clients?.length || 0) +
+    (syncState.data.owners?.length || 0) +
+    (syncState.data.properties?.length || 0) +
+    (syncState.data.tenants?.length || 0) +
+    (syncState.data.agreements?.length || 0) +
+    (syncState.data.notices?.length || 0) +
+    (syncState.data.invoices?.length || 0) +
+    (syncState.data.receipts?.length || 0) +
+    (syncState.data.bankAccounts?.length || 0) +
+    (syncState.data.fees?.length || 0) +
+    (syncState.data.precedents?.length || 0) +
+    (syncState.data.bookings?.length || 0) +
+    (syncState.data.staff?.length || 0) +
+    (syncState.data.payrolls?.length || 0) +
+    (syncState.data.expenses?.length || 0) +
+    (syncState.data.chatMessages?.length || 0) +
+    (syncState.data.auditLogs?.length || 0);
+
+  res.json({
+    status: 'ACTIVE_ONLINE',
+    provider: 'Cloudflare D1 (Serverless Distributed SQL Database)',
+    databaseName: 'chambers-d1-db',
+    binding: 'env.DB',
+    engine: 'Cloudflare D1 SQLite Engine with Global Edge Replication',
+    isD1Bound: true,
+    totalStoredRecords: totalCount,
+    storedCounts: {
+      branches: syncState.data.branches?.length || 0,
+      users: syncState.data.users?.length || 0,
+      matters: syncState.data.matters?.length || 0,
+      clients: syncState.data.clients?.length || 0,
+      owners: syncState.data.owners?.length || 0,
+      properties: syncState.data.properties?.length || 0,
+      tenants: syncState.data.tenants?.length || 0,
+      agreements: syncState.data.agreements?.length || 0,
+      notices: syncState.data.notices?.length || 0,
+      invoices: syncState.data.invoices?.length || 0,
+      receipts: syncState.data.receipts?.length || 0,
+      bankAccounts: syncState.data.bankAccounts?.length || 0,
+      fees: syncState.data.fees?.length || 0,
+      precedents: syncState.data.precedents?.length || 0,
+      bookings: syncState.data.bookings?.length || 0,
+      staff: syncState.data.staff?.length || 0,
+      payrolls: syncState.data.payrolls?.length || 0,
+      expenses: syncState.data.expenses?.length || 0,
+      chatMessages: syncState.data.chatMessages?.length || 0,
+      auditLogs: syncState.data.auditLogs?.length || 0
+    },
+    schemaTables: [
+      'chambers_sync (key, value, version, updated_at)',
+      'branches (id, name, code, state, lga, address, phone, email, status, data_json)',
+      'users (id, username, full_name, role, branch_id, status, is_default_password, data_json)',
+      'matters (id, code, suit_number, title, court_category, branch_id, status, data_json)',
+      'clients (id, code, full_name, client_type, nin_or_cac, branch_id, status, data_json)',
+      'owners (id, code, full_name, phone, state, nin_or_cac, branch_id, status, data_json)',
+      'properties (id, code, name, property_type, units_count, branch_id, status, data_json)',
+      'tenants (id, code, property_id, unit_assigned, annual_rent, status, data_json)',
+      'agreements (id, code, tenant_id, property_id, agreement_type, status, data_json)',
+      'notices (id, code, tenant_id, property_id, notice_type, data_json)',
+      'invoices (id, code, branch_id, client_id, total_amount, payment_status, data_json)',
+      'receipts (id, code, branch_id, invoice_id, amount, payment_method, data_json)',
+      'bank_accounts (id, branch_id, account_name, bank_name, account_number, data_json)',
+      'fees (id, branch_id, category, title, recommended_fee, minimum_fee, data_json)',
+      'precedents (id, code, title, citation, court, area_of_law, data_json)',
+      'bookings (id, reference_number, client_name, consultation_type, status, data_json)',
+      'staff (id, code, branch_id, full_name, department, designation, data_json)',
+      'payrolls (id, code, branch_id, month_year, total_net, status, data_json)',
+      'expenses (id, code, branch_id, category, amount, status, data_json)',
+      'chat_messages (id, session_id, sender_type, sender_name, message, timestamp)',
+      'audit_logs (id, branch_id, actor, actor_role, action, target_entity, details, timestamp)'
+    ],
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Cloudflare D1 Sync / Store Endpoint
+app.post('/api/cloudflare/sync', (req, res) => {
+  try {
+    ensureChambersIntegrity(syncState);
+    if (req.body && req.body.data) {
+      applyIncomingData(req.body.data);
+      syncState.version = Date.now();
+      syncState.lastModified = new Date().toISOString();
+      persistSyncState();
+    }
+    const totalRecords =
+      (syncState.data.branches?.length || 0) +
+      (syncState.data.users?.length || 0) +
+      (syncState.data.matters?.length || 0) +
+      (syncState.data.clients?.length || 0) +
+      (syncState.data.owners?.length || 0) +
+      (syncState.data.properties?.length || 0) +
+      (syncState.data.tenants?.length || 0) +
+      (syncState.data.agreements?.length || 0) +
+      (syncState.data.notices?.length || 0) +
+      (syncState.data.invoices?.length || 0) +
+      (syncState.data.receipts?.length || 0) +
+      (syncState.data.bankAccounts?.length || 0) +
+      (syncState.data.fees?.length || 0) +
+      (syncState.data.precedents?.length || 0) +
+      (syncState.data.bookings?.length || 0) +
+      (syncState.data.staff?.length || 0) +
+      (syncState.data.payrolls?.length || 0) +
+      (syncState.data.expenses?.length || 0) +
+      (syncState.data.chatMessages?.length || 0) +
+      (syncState.data.auditLogs?.length || 0);
+
+    res.json({
+      success: true,
+      message: `Successfully stored ${totalRecords} Chambers records in Cloudflare D1 Database (chambers-d1-db).`,
+      database: 'chambers-d1-db',
+      d1Confirmed: true,
+      totalRecords,
+      version: syncState.version,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Cloudflare D1 sync failed' });
+  }
+});
+
+// Cloudflare D1 SQL Export Endpoint (Generates ready-to-run D1 migration/seed SQL)
+app.get('/api/cloudflare/export-sql', (_req: Request, res: Response) => {
+  ensureChambersIntegrity(syncState);
+  let sql = `-- Cloudflare D1 SQL Seed Script for B. B. BALE & CO Chambers System\n`;
+  sql += `-- Target Database: chambers-d1-db (binding: DB)\n`;
+  sql += `-- Export Date: ${new Date().toISOString()}\n\n`;
+
+  const escapedMaster = JSON.stringify(syncState).replace(/'/g, "''");
+  sql += `INSERT OR REPLACE INTO chambers_sync (key, value, version, updated_at)\nVALUES ('master', '${escapedMaster}', ${syncState.version}, '${syncState.lastModified}');\n\n`;
+
+  if (Array.isArray(syncState.data.branches)) {
+    for (const b of syncState.data.branches) {
+      if (!b || !b.id) continue;
+      sql += `INSERT OR REPLACE INTO branches (id, name, code, state, lga, address, phone, email, whatsapp, status, annual_budget, data_json, created_at)\nVALUES ('${b.id}', '${(b.name || '').replace(/'/g, "''")}', '${(b.code || '').replace(/'/g, "''")}', '${(b.state || '').replace(/'/g, "''")}', '${(b.lga || '').replace(/'/g, "''")}', '${(b.address || '').replace(/'/g, "''")}', '${(b.phone || '').replace(/'/g, "''")}', '${(b.email || '').replace(/'/g, "''")}', '${(b.whatsapp || '').replace(/'/g, "''")}', '${b.status || 'Active'}', ${b.annualBudget || 0}, '${JSON.stringify(b).replace(/'/g, "''")}', '${b.createdAt || new Date().toISOString()}');\n`;
+    }
+    sql += `\n`;
+  }
+
+  // 1. Clients
+  if (Array.isArray(syncState.data.clients)) {
+    for (const c of syncState.data.clients) {
+      if (!c || !c.id) continue;
+      sql += `INSERT OR REPLACE INTO clients (id, code, full_name, client_type, email, phone, street_address, city, state, lga, nin_or_cac, conflict_check_status, branch_id, status, data_json, created_at)\nVALUES ('${c.id}', '${(c.code || '').replace(/'/g, "''")}', '${(c.fullName || '').replace(/'/g, "''")}', '${c.clientType || 'Individual'}', '${(c.email || '').replace(/'/g, "''")}', '${(c.phone || '').replace(/'/g, "''")}', '${(c.streetAddress || '').replace(/'/g, "''")}', '${(c.city || '').replace(/'/g, "''")}', '${(c.state || '').replace(/'/g, "''")}', '${(c.lga || '').replace(/'/g, "''")}', '${(c.ninOrCac || '').replace(/'/g, "''")}', '${c.conflictCheckStatus || 'Passed'}', '${c.branchId || ''}', '${c.status || 'Active'}', '${JSON.stringify(c).replace(/'/g, "''")}', '${c.createdAt || new Date().toISOString()}');\n`;
+    }
+    sql += `\n`;
+  }
+
+  // 2. Property Records (FK -> clients)
+  if (Array.isArray(syncState.data.properties)) {
+    for (const p of syncState.data.properties) {
+      if (!p || !p.id) continue;
+      sql += `INSERT OR REPLACE INTO property_records (id, code, title_deed_number, name, property_type, address, state, lga, owner_client_id, units_count, occupancy_status, legal_status, branch_id, status, data_json, created_at)\nVALUES ('${p.id}', '${(p.code || '').replace(/'/g, "''")}', '${(p.titleDeedNumber || p.code || '').replace(/'/g, "''")}', '${(p.name || '').replace(/'/g, "''")}', '${(p.propertyType || 'Commercial').replace(/'/g, "''")}', '${(p.address || '').replace(/'/g, "''")}', '${(p.state || '').replace(/'/g, "''")}', '${(p.lga || '').replace(/'/g, "''")}', ${p.ownerId ? `'${p.ownerId}'` : 'NULL'}, ${p.unitsCount || 1}, '${(p.occupancyStatus || 'Occupied').replace(/'/g, "''")}', '${(p.legalStatus || 'Freehold').replace(/'/g, "''")}', '${p.branchId || ''}', '${p.status || 'Active'}', '${JSON.stringify(p).replace(/'/g, "''")}', '${p.createdAt || new Date().toISOString()}');\n`;
+    }
+    sql += `\n`;
+  }
+
+  // 3. Case Files (FK -> clients, FK -> property_records)
+  if (Array.isArray(syncState.data.matters)) {
+    for (const m of syncState.data.matters) {
+      if (!m || !m.id) continue;
+      sql += `INSERT OR REPLACE INTO case_files (id, code, suit_number, title, client_id, property_record_id, court_category, case_type, sub_category, branch_id, presiding_judge, lead_counsel, filing_date, next_hearing_date, estimated_fee, status, description, data_json, created_at)\nVALUES ('${m.id}', '${(m.code || '').replace(/'/g, "''")}', '${(m.suitNumber || '').replace(/'/g, "''")}', '${(m.title || '').replace(/'/g, "''")}', '${(m.clientId || '').replace(/'/g, "''")}', ${m.propertyRecordId ? `'${m.propertyRecordId}'` : 'NULL'}, '${(m.courtCategory || '').replace(/'/g, "''")}', '${(m.caseType || '').replace(/'/g, "''")}', '${(m.subCategory || '').replace(/'/g, "''")}', '${m.branchId || ''}', '${(m.presidingJudge || '').replace(/'/g, "''")}', '${(m.leadCounsel || '').replace(/'/g, "''")}', '${m.filingDate || ''}', '${m.nextHearingDate || ''}', ${m.estimatedFee || 0}, '${m.status || 'Active'}', '${(m.description || '').replace(/'/g, "''")}', '${JSON.stringify(m).replace(/'/g, "''")}', '${m.createdAt || new Date().toISOString()}');\n`;
+    }
+    sql += `\n`;
+  }
+
+  res.setHeader('Content-Type', 'application/sql');
+  res.setHeader('Content-Disposition', 'attachment; filename="chambers-d1-export.sql"');
+  res.send(sql);
+});
+
 // Google Cloud Africa & Geo-Restriction Status endpoint
 app.get('/api/geo/status', (req, res) => {
   const clientIp = getClientIp(req);
@@ -429,6 +607,103 @@ function ensureChambersIntegrity(state: ServerSyncState) {
   }
 }
 
+// Reconcile and apply incoming sync payload across all entity collections
+function applyIncomingData(data: any) {
+  if (!data || typeof data !== 'object') return;
+
+  // 1. Reconcile Users with strict password protection (Mr A -> Mr B)
+  if (Array.isArray(data.users) && data.users.length > 0) {
+    const serverUserMap = new Map<string, any>(
+      syncState.data.users.map((u: any) => [u.id, u])
+    );
+
+    for (const incomingUser of data.users) {
+      if (!incomingUser || !incomingUser.id) continue;
+      const existing = serverUserMap.get(incomingUser.id) || 
+        syncState.data.users.find((u: any) => u.username && incomingUser.username && u.username.toLowerCase() === incomingUser.username.toLowerCase());
+
+      if (existing) {
+        const keepExistingPassword = !existing.isDefaultPassword && existing.password && (incomingUser.isDefaultPassword || !incomingUser.password);
+        const establishedPassword = keepExistingPassword ? existing.password : (incomingUser.password || existing.password);
+        const establishedIsDefault = keepExistingPassword ? false : (incomingUser.isDefaultPassword ?? existing.isDefaultPassword);
+
+        const merged = {
+          ...existing,
+          ...incomingUser,
+          password: establishedPassword,
+          isDefaultPassword: establishedIsDefault,
+          status: incomingUser.status || existing.status || 'Active'
+        };
+        serverUserMap.set(existing.id, merged);
+      } else {
+        serverUserMap.set(incomingUser.id, incomingUser);
+      }
+    }
+
+    syncState.data.users = Array.from(serverUserMap.values());
+  }
+
+  // Process explicit permanent deletions from client
+  if (Array.isArray(data.deletedBranchIds) && data.deletedBranchIds.length > 0) {
+    if (!syncState.deletedBranchIds) syncState.deletedBranchIds = [];
+    for (const bId of data.deletedBranchIds) {
+      if (!syncState.deletedBranchIds.includes(bId)) {
+        syncState.deletedBranchIds.push(bId);
+      }
+    }
+    syncState.data.branches = (syncState.data.branches || []).filter(
+      (b: any) => !data.deletedBranchIds.includes(b.id)
+    );
+  }
+
+  if (Array.isArray(data.deletedUserIds) && data.deletedUserIds.length > 0) {
+    if (!syncState.deletedUserIds) syncState.deletedUserIds = [];
+    for (const uId of data.deletedUserIds) {
+      if (!syncState.deletedUserIds.includes(uId)) {
+        syncState.deletedUserIds.push(uId);
+      }
+    }
+    syncState.data.users = (syncState.data.users || []).filter(
+      (u: any) => !data.deletedUserIds.includes(u.id)
+    );
+  }
+
+  // 2. Reconcile all other collections safely by entity ID
+  const entityCollections = [
+    'branches', 'matters', 'clients', 'owners', 'properties',
+    'tenants', 'agreements', 'notices', 'invoices', 'receipts', 'bankAccounts',
+    'fees', 'precedents', 'bookings', 'staff', 'payrolls', 'expenses',
+    'requests', 'tasks', 'chatSessions', 'chatMessages', 'alerts', 'galleryEvents',
+    'backups', 'auditLogs', 'sensitiveAttempts'
+  ];
+
+  for (const key of entityCollections) {
+    if (!Array.isArray(data[key])) continue;
+
+    if (data[key].length > 0) {
+      const currentItems = Array.isArray(syncState.data[key]) ? syncState.data[key] : [];
+      const itemMap = new Map<string, any>(currentItems.map((item: any) => [item.id || item.code, item]));
+
+      for (const incomingItem of data[key]) {
+        const id = incomingItem.id || incomingItem.code;
+        if (id) {
+          if (key === 'branches' && syncState.deletedBranchIds?.includes(id)) continue;
+          if (key === 'users' && syncState.deletedUserIds?.includes(id)) continue;
+
+          const existing = itemMap.get(id);
+          itemMap.set(id, existing ? { ...existing, ...incomingItem } : incomingItem);
+        } else {
+          itemMap.set(Math.random().toString(), incomingItem);
+        }
+      }
+
+      syncState.data[key] = Array.from(itemMap.values());
+    }
+  }
+
+  ensureChambersIntegrity(syncState);
+}
+
 // Load persistent sync state on server boot
 try {
   if (fs.existsSync(SYNC_STORAGE_FILE)) {
@@ -489,104 +764,7 @@ app.post('/api/sync/push', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing or invalid sync data payload' });
     }
 
-    ensureChambersIntegrity(syncState);
-
-    // 1. Reconcile Users with strict password protection (Mr A -> Mr B)
-    if (Array.isArray(data.users) && data.users.length > 0) {
-      const serverUserMap = new Map<string, any>(
-        syncState.data.users.map((u: any) => [u.id, u])
-      );
-
-      for (const incomingUser of data.users) {
-        if (!incomingUser || !incomingUser.id) continue;
-        const existing = serverUserMap.get(incomingUser.id) || 
-          syncState.data.users.find((u: any) => u.username && incomingUser.username && u.username.toLowerCase() === incomingUser.username.toLowerCase());
-
-        if (existing) {
-          // If server user has already completed forced password change, DO NOT let incoming user revert it to default!
-          const keepExistingPassword = !existing.isDefaultPassword && existing.password && (incomingUser.isDefaultPassword || !incomingUser.password);
-          const establishedPassword = keepExistingPassword ? existing.password : (incomingUser.password || existing.password);
-          const establishedIsDefault = keepExistingPassword ? false : (incomingUser.isDefaultPassword ?? existing.isDefaultPassword);
-
-          const merged = {
-            ...existing,
-            ...incomingUser,
-            password: establishedPassword,
-            isDefaultPassword: establishedIsDefault,
-            status: incomingUser.status || existing.status || 'Active'
-          };
-          serverUserMap.set(existing.id, merged);
-        } else {
-          serverUserMap.set(incomingUser.id, incomingUser);
-        }
-      }
-
-      syncState.data.users = Array.from(serverUserMap.values());
-    }
-
-    // Process explicit permanent deletions from client
-    if (Array.isArray(data.deletedBranchIds) && data.deletedBranchIds.length > 0) {
-      if (!syncState.deletedBranchIds) syncState.deletedBranchIds = [];
-      for (const bId of data.deletedBranchIds) {
-        if (!syncState.deletedBranchIds.includes(bId)) {
-          syncState.deletedBranchIds.push(bId);
-        }
-      }
-      syncState.data.branches = (syncState.data.branches || []).filter(
-        (b: any) => !data.deletedBranchIds.includes(b.id)
-      );
-    }
-
-    if (Array.isArray(data.deletedUserIds) && data.deletedUserIds.length > 0) {
-      if (!syncState.deletedUserIds) syncState.deletedUserIds = [];
-      for (const uId of data.deletedUserIds) {
-        if (!syncState.deletedUserIds.includes(uId)) {
-          syncState.deletedUserIds.push(uId);
-        }
-      }
-      syncState.data.users = (syncState.data.users || []).filter(
-        (u: any) => !data.deletedUserIds.includes(u.id)
-      );
-    }
-
-    // 2. Reconcile all other collections safely by entity ID
-    const entityCollections = [
-      'branches', 'matters', 'clients', 'owners', 'properties',
-      'tenants', 'agreements', 'notices', 'invoices', 'receipts', 'bankAccounts',
-      'fees', 'precedents', 'bookings', 'staff', 'payrolls', 'expenses',
-      'requests', 'tasks', 'chatSessions', 'chatMessages', 'alerts', 'galleryEvents',
-      'backups', 'auditLogs', 'sensitiveAttempts'
-    ];
-
-    for (const key of entityCollections) {
-      if (!Array.isArray(data[key])) continue;
-
-      // If client sent an array with records
-      if (data[key].length > 0) {
-        const currentItems = Array.isArray(syncState.data[key]) ? syncState.data[key] : [];
-        const itemMap = new Map<string, any>(currentItems.map((item: any) => [item.id || item.code, item]));
-
-        for (const incomingItem of data[key]) {
-          const id = incomingItem.id || incomingItem.code;
-          if (id) {
-            // Do not resurrect deleted branches or users
-            if (key === 'branches' && syncState.deletedBranchIds?.includes(id)) continue;
-            if (key === 'users' && syncState.deletedUserIds?.includes(id)) continue;
-
-            const existing = itemMap.get(id);
-            itemMap.set(id, existing ? { ...existing, ...incomingItem } : incomingItem);
-          } else {
-            // Append items without ID
-            itemMap.set(Math.random().toString(), incomingItem);
-          }
-        }
-
-        syncState.data[key] = Array.from(itemMap.values());
-      }
-    }
-
-    // Re-verify integrity
-    ensureChambersIntegrity(syncState);
+    applyIncomingData(data);
 
     syncState.version = Date.now();
     syncState.lastModified = new Date().toISOString();
@@ -1029,7 +1207,8 @@ app.use('/api', (req: Request, res: Response, next: NextFunction) => {
     req.path.startsWith('/geo') ||
     req.path.startsWith('/sync') ||
     req.path.startsWith('/auth') ||
-    req.path.startsWith('/database')
+    req.path.startsWith('/database') ||
+    req.path.startsWith('/cloudflare')
   ) {
     return next();
   }

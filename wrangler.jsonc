@@ -11,6 +11,13 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "chambers-d1-db",
+      "database_id": "chambers-d1-production"
+    }
+  ],
   "vars": {
     "NODE_ENV": "production",
     "ENABLE_CLOUDSQL": "false"

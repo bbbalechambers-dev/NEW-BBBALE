@@ -199,6 +199,9 @@ interface AppContextType {
   // Google Cloud Firestore Sync
   pushAllToGoogleCloud: () => Promise<{ success: boolean; count: number; error?: string }>;
   getGoogleCloudDbInfo: () => GoogleCloudDatabaseInfo;
+
+  // Cloudflare D1 Database Sync
+  pushAllToCloudflareDatabase: () => Promise<{ success: boolean; count: number; error?: string }>;
 }
 
 const STORAGE_KEY = 'BBB_BALE_CHAMBERS_DB_PROD';
@@ -1905,6 +1908,98 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Cloudflare D1 Relational & Edge Database Storage Engine
+  const pushAllToCloudflareDatabase = async (): Promise<{ success: boolean; count: number; error?: string }> => {
+    try {
+      const fullSnapshot = {
+        branches,
+        users,
+        deletedBranchIds: deletedBranchIdsRef.current,
+        deletedUserIds: deletedUserIdsRef.current,
+        matters,
+        clients,
+        owners,
+        properties,
+        tenants,
+        agreements,
+        notices,
+        invoices,
+        receipts,
+        bankAccounts,
+        fees,
+        precedents,
+        bookings,
+        staff,
+        payrolls,
+        expenses,
+        requests,
+        tasks,
+        chatSessions,
+        chatMessages,
+        alerts,
+        galleryEvents,
+        backups,
+        auditLogs,
+        sensitiveAttempts
+      };
+
+      const totalCount =
+        branches.length +
+        users.length +
+        matters.length +
+        clients.length +
+        owners.length +
+        properties.length +
+        tenants.length +
+        agreements.length +
+        notices.length +
+        invoices.length +
+        receipts.length +
+        bankAccounts.length +
+        fees.length +
+        precedents.length +
+        bookings.length +
+        staff.length +
+        payrolls.length +
+        expenses.length +
+        requests.length +
+        tasks.length +
+        chatSessions.length +
+        chatMessages.length +
+        alerts.length +
+        galleryEvents.length +
+        backups.length +
+        auditLogs.length +
+        sensitiveAttempts.length;
+
+      const res = await fetch('/api/cloudflare/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: fullSnapshot,
+          actor: currentUser?.fullName || currentUser?.username || 'Chambers System Admin',
+          timestamp: new Date().toISOString()
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = (await res.json().catch(() => ({}))) as any;
+        throw new Error(errorData?.error || `HTTP ${res.status}: Failed to store in Cloudflare Database`);
+      }
+
+      logAudit(
+        'Cloudflare D1 Database Sync',
+        'Database',
+        `Successfully stored ${totalCount} chambers records into Cloudflare D1 Database (chambers-d1-db).`
+      );
+
+      return { success: true, count: totalCount };
+    } catch (err: any) {
+      console.error('Push to Cloudflare Database error:', err);
+      return { success: false, count: 0, error: err.message || 'Cloudflare D1 storage failed' };
+    }
+  };
+
   // Reset database clean for testing (Section 1 compliance)
   const resetDatabaseClean = async () => {
     localStorage.removeItem(STORAGE_KEY);
@@ -2042,7 +2137,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         checkBranchRoleQuota,
         effectiveBranchId,
         pushAllToGoogleCloud,
-        getGoogleCloudDbInfo
+        getGoogleCloudDbInfo,
+        pushAllToCloudflareDatabase
       }}
     >
       {children}
