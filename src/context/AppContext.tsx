@@ -30,8 +30,11 @@ import {
   BackupRecord,
   AuditLog,
   SensitiveAccessAttempt,
-  UploadedFileMetadata
+  UploadedFileMetadata,
+  DualSyncTelemetry,
+  DualDatabaseConsistencyReport
 } from '../types';
+import { dualDatabaseSyncService } from '../services/dualDatabaseSyncService';
 
 interface AppContextType {
   // Authentication & Session
@@ -202,6 +205,13 @@ interface AppContextType {
 
   // Cloudflare D1 Database Sync
   pushAllToCloudflareDatabase: () => Promise<{ success: boolean; count: number; error?: string }>;
+
+  // Dual-Database Synchronization Service (Firestore <-> Cloudflare D1 CHAMBERS_DB)
+  dualSyncTelemetry: DualSyncTelemetry;
+  triggerDualDatabaseSync: () => Promise<{ success: boolean; count: number; error?: string }>;
+  setDualSyncAutoInterval: (seconds: number) => void;
+  toggleDualSyncAuto: (enabled: boolean) => void;
+  getDualDatabaseConsistencyReport: () => Promise<DualDatabaseConsistencyReport>;
 }
 
 const STORAGE_KEY = 'BBB_BALE_CHAMBERS_DB_PROD';
@@ -2000,6 +2010,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Dual-Database Synchronization Service state
+  const [dualSyncTelemetry, setDualSyncTelemetry] = useState<DualSyncTelemetry>(
+    dualDatabaseSyncService.getTelemetry()
+  );
+
+  useEffect(() => {
+    const unsubscribe = dualDatabaseSyncService.subscribe((telem) => {
+      setDualSyncTelemetry(telem);
+    });
+    return unsubscribe;
+  }, []);
+
+  const triggerDualDatabaseSync = async (): Promise<{ success: boolean; count: number; error?: string }> => {
+    const snapshot = {
+      matters,
+      clients,
+      properties,
+      auditLogs,
+      branches,
+      users,
+      owners,
+      tenants,
+      invoices,
+      receipts,
+      bookings
+    };
+    return await dualDatabaseSyncService.executePeriodicSync('MANUAL', snapshot);
+  };
+
+  const setDualSyncAutoInterval = (seconds: number) => {
+    dualDatabaseSyncService.setIntervalSeconds(seconds);
+  };
+
+  const toggleDualSyncAuto = (enabled: boolean) => {
+    dualDatabaseSyncService.setAutoSyncEnabled(enabled);
+  };
+
+  const getDualDatabaseConsistencyReport = async (): Promise<DualDatabaseConsistencyReport> => {
+    return await dualDatabaseSyncService.verifyDualDatabaseConsistency();
+  };
+
   // Reset database clean for testing (Section 1 compliance)
   const resetDatabaseClean = async () => {
     localStorage.removeItem(STORAGE_KEY);
@@ -2138,7 +2189,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         effectiveBranchId,
         pushAllToGoogleCloud,
         getGoogleCloudDbInfo,
-        pushAllToCloudflareDatabase
+        pushAllToCloudflareDatabase,
+        dualSyncTelemetry,
+        triggerDualDatabaseSync,
+        setDualSyncAutoInterval,
+        toggleDualSyncAuto,
+        getDualDatabaseConsistencyReport
       }}
     >
       {children}

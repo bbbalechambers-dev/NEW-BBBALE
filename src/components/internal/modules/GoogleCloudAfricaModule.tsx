@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Server, Shield, Globe, Lock, CheckCircle2, AlertTriangle, Cpu, Terminal, RefreshCw, Copy, Check, Users, Gauge, Zap, Database, ArrowDownCircle, CheckSquare, CloudUpload, HardDrive, Layers, FileCode, Cloud, Download, Table, Sparkles } from 'lucide-react';
 import { GeoAccessStatus, CloudQuotaGovernor } from '../../../types';
 import { useApp } from '../../../context/AppContext';
+import { DualDatabaseSyncCard } from '../../common/DualDatabaseSyncCard';
 
 export const GoogleCloudAfricaModule: React.FC = () => {
   const {
@@ -370,7 +371,7 @@ gcloud run deploy bb-bale-chambers \\
                     </span>
                     <span>•</span>
                     <span className="flex items-center gap-1 text-gray-300">
-                      Binding: <strong className="text-white font-bold">env.DB</strong>
+                      Binding: <strong className="text-white font-bold">env.CHAMBERS_DB</strong>
                     </span>
                     <span>•</span>
                     <span className="flex items-center gap-1 text-gray-300">
@@ -422,6 +423,9 @@ gcloud run deploy bb-bale-chambers \\
             )}
           </div>
 
+          {/* Dual-Database Periodic Synchronization Service Card */}
+          <DualDatabaseSyncCard />
+
           {/* D1 Specs & Overview Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs space-y-1">
@@ -451,8 +455,8 @@ gcloud run deploy bb-bale-chambers \\
                 <span>Worker Binding</span>
                 <Lock className="w-3.5 h-3.5 text-emerald-600" />
               </div>
-              <div className="text-base font-bold font-mono text-[#1a2a4a]">env.DB</div>
-              <div className="text-xs text-gray-700 font-mono">wrangler.jsonc Configured</div>
+              <div className="text-base font-bold font-mono text-[#1a2a4a]">env.CHAMBERS_DB</div>
+              <div className="text-xs text-gray-700 font-mono">wrangler.toml Configured</div>
               <div className="text-[11px] text-gray-500">Zero-latency Worker invocation</div>
             </div>
 
@@ -642,6 +646,9 @@ gcloud run deploy bb-bale-chambers \\
               </div>
             )}
           </div>
+
+          {/* Dual-Database Periodic Synchronization Service Card */}
+          <DualDatabaseSyncCard />
 
           {/* Database Specs Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

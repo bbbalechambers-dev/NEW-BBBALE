@@ -1,0 +1,26 @@
+# Cloudflare Workers & D1 Configuration for B. B. BALE & CO Chambers Law Firm Management System
+name = "bb-bale-chambers"
+main = "src/worker.ts"
+compatibility_date = "2026-10-15"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# Primary D1 Database Binding for the Law Firm Management System
+[[d1_databases]]
+binding = "CHAMBERS_DB"
+database_name = "chambers-d1-db"
+database_id = "chambers-d1-production"
+
+# Fallback alias binding for backward compatibility
+[[d1_databases]]
+binding = "DB"
+database_name = "chambers-d1-db"
+database_id = "chambers-d1-production"
+
+[vars]
+NODE_ENV = "production"
+ENABLE_CLOUDSQL = "false"

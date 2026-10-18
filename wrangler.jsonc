@@ -13,6 +13,11 @@
   },
   "d1_databases": [
     {
+      "binding": "CHAMBERS_DB",
+      "database_name": "chambers-d1-db",
+      "database_id": "chambers-d1-production"
+    },
+    {
       "binding": "DB",
       "database_name": "chambers-d1-db",
       "database_id": "chambers-d1-production"

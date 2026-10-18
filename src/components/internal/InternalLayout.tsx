@@ -156,14 +156,26 @@ export const InternalLayout: React.FC<InternalLayoutProps> = ({ onReturnToPublic
 
             {/* Google Cloud Africa Region Badge (Restricted from Account Officer) */}
             {!isAccountOfficer && (
-              <button
-                onClick={() => setActiveModule('google-cloud-africa')}
-                title="Google Cloud Region: africa-south1 (Pan-African Access Enforced)"
-                className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-green-300 bg-green-950/60 hover:bg-green-900/70 border border-green-700/60 rounded cursor-pointer transition-colors"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-                <span className="font-mono">africa-south1</span>
-              </button>
+              <>
+                <button
+                  onClick={() => setActiveModule('google-cloud-africa')}
+                  title="Google Cloud Region: africa-south1 (Pan-African Access Enforced)"
+                  className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-green-300 bg-green-950/60 hover:bg-green-900/70 border border-green-700/60 rounded cursor-pointer transition-colors"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                  <span className="font-mono">africa-south1</span>
+                </button>
+
+                {/* Dual-Database Synchronization Badge: Firestore <-> D1 CHAMBERS_DB */}
+                <button
+                  onClick={() => setActiveModule('google-cloud-africa')}
+                  title="Dual Database: Firestore ⟷ Cloudflare D1 (CHAMBERS_DB) Periodic Sync Active"
+                  className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-amber-300 bg-amber-950/70 hover:bg-amber-900/80 border border-amber-600/60 rounded cursor-pointer transition-colors"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                  <span className="font-mono">Firestore ⇄ D1 (CHAMBERS_DB)</span>
+                </button>
+              </>
             )}
           </div>
 

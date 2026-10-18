@@ -583,3 +583,54 @@ export interface GeoAccessStatus {
   isBypassed: boolean;
   legalNotice: string;
 }
+
+export interface DualSyncTelemetry {
+  lastSyncTime: string | null;
+  syncStatus: 'IDLE' | 'SYNCING' | 'SUCCESS' | 'ERROR';
+  syncMode: 'AUTOMATIC_PERIODIC' | 'MANUAL';
+  intervalSeconds: number;
+  autoSyncEnabled: boolean;
+  totalSyncedCount: number;
+  lastBatchCount: number;
+  consistencyScorePct: number;
+  highPriorityCounts: {
+    matters: number;
+    clients: number;
+    properties: number;
+    auditLogs: number;
+  };
+  lastError?: string | null;
+  history: Array<{
+    timestamp: string;
+    recordsCount: number;
+    durationMs: number;
+    status: 'SUCCESS' | 'ERROR';
+    details: string;
+  }>;
+}
+
+export interface DualDatabaseConsistencyReport {
+  timestamp: string;
+  isConsistent: boolean;
+  consistencyScorePct: number;
+  firestoreStats: {
+    highPriorityMatters: number;
+    highPriorityClients: number;
+    highPriorityProperties: number;
+    auditLogs: number;
+    total: number;
+  };
+  cloudflareD1Stats: {
+    caseFilesCount: number;
+    clientsCount: number;
+    propertyRecordsCount: number;
+    auditLogsCount: number;
+    total: number;
+  };
+  matchedCount: number;
+  discrepancies: Array<{
+    collection: string;
+    id: string;
+    issue: string;
+  }>;
+}
