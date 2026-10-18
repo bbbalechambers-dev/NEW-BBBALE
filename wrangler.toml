@@ -12,14 +12,14 @@ not_found_handling = "single-page-application"
 # Primary D1 Database Binding for the Law Firm Management System
 [[d1_databases]]
 binding = "CHAMBERS_DB"
-database_name = "chambers-d1-db"
-database_id = "chambers-d1-production"
+database_name = "bbbalechambers"
+database_id = "eb94e59f-64ac-402e-95da-09747a0e51c7"
 
 # Fallback alias binding for backward compatibility
 [[d1_databases]]
 binding = "DB"
-database_name = "chambers-d1-db"
-database_id = "chambers-d1-production"
+database_name = "bbbalechambers"
+database_id = "eb94e59f-64ac-402e-95da-09747a0e51c7"
 
 [vars]
 NODE_ENV = "production"
