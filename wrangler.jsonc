@@ -14,13 +14,13 @@
   "d1_databases": [
     {
       "binding": "CHAMBERS_DB",
-      "database_name": "chambers-d1-db",
-      "database_id": "chambers-d1-production"
+      "database_name": "bbbalechambers",
+      "database_id": "eb94e59f-64ac-402e-95da-09747a0e51c7"
     },
     {
       "binding": "DB",
-      "database_name": "chambers-d1-db",
-      "database_id": "chambers-d1-production"
+      "database_name": "bbbalechambers",
+      "database_id": "eb94e59f-64ac-402e-95da-09747a0e51c7"
     }
   ],
   "vars": {
