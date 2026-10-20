@@ -11,7 +11,7 @@ not_found_handling = "single-page-application"
 [[d1_databases]]
 binding = "LAW_DB"
 database_name = "bbbalechambers"
-database_id = "eb94e59f-64ac-402e-95da-09747a0e51c7"
+database_id = "ca70ad79-15b1-46e1-a2ba-35a9cf99705d"
 
 [vars]
 NODE_ENV = "production"
