@@ -6,12 +6,18 @@ interface StaffLoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: () => void;
+  /**
+   * Open straight into the mandatory first-login password change form (Section 9.3).
+   * Used when a signed-in account still carries its temporary default password.
+   */
+  initialRequirePasswordChange?: boolean;
 }
 
 export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
   isOpen,
   onClose,
-  onLoginSuccess
+  onLoginSuccess,
+  initialRequirePasswordChange = false
 }) => {
   const { loginUser, updateUserPassword, currentUser } = useApp();
 
@@ -22,7 +28,7 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Forced Password Change Modal State (Section 9)
-  const [requirePasswordChange, setRequirePasswordChange] = useState(false);
+  const [requirePasswordChange, setRequirePasswordChange] = useState(initialRequirePasswordChange);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordChangeError, setPasswordChangeError] = useState<string | null>(null);
@@ -94,8 +100,9 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
       await updateUserPassword(currentUser.id, newPassword);
       setIsSubmitting(false);
       setRequirePasswordChange(false);
+      // onLoginSuccess dismisses the modal; onClose is left to the caller so the
+      // mandatory-change gate is not signed out right after setting the password.
       onLoginSuccess();
-      onClose();
     }
   };
 

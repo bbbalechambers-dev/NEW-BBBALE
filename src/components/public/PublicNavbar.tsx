@@ -29,7 +29,6 @@ export const PublicNavbar: React.FC<PublicNavbarProps> = ({
     { id: 'team', label: 'Our Team' },
     { id: 'gallery', label: 'Branch Gallery' },
     { id: 'properties', label: 'Properties' },
-    { id: 'news', label: 'Announcements' },
     { id: 'contact', label: 'Contact' }
   ];
 
