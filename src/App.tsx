@@ -32,6 +32,7 @@ import { TenantPortal } from './components/portal/TenantPortal';
 const MainApp: React.FC = () => {
   const {
     currentUser,
+    logoutUser,
     authenticatedClient,
     authenticatedOwner,
     authenticatedTenant
@@ -44,6 +45,20 @@ const MainApp: React.FC = () => {
   const [registrationDefaultTab, setRegistrationDefaultTab] = useState<'client' | 'owner' | 'tenant'>('client');
 
   const [viewMode, setViewMode] = useState<'internal' | 'public'>('internal');
+
+  // Mandatory first-login password change (Section 9.3).
+  // StaffLoginModal hosts the forced change form, so it must stay mounted while the
+  // account still uses its temporary default password: nothing else may be reachable.
+  if (currentUser && currentUser.isDefaultPassword) {
+    return (
+      <StaffLoginModal
+        isOpen
+        initialRequirePasswordChange
+        onClose={logoutUser}
+        onLoginSuccess={() => {}}
+      />
+    );
+  }
 
   // If internal staff user is signed in and in internal mode -> show full internal management site
   if (currentUser && viewMode === 'internal') {
@@ -152,7 +167,6 @@ const MainApp: React.FC = () => {
         )}
         {activePage === 'contact' && <ContactPage />}
         {activePage === 'faq' && <FaqPage />}
-        {activePage === 'news' && <AboutPage />}
         {activePage === 'privacy' && <PrivacyPolicyPage />}
         {activePage === 'terms' && <TermsPage />}
         {activePage === 'refund' && <RefundPolicyPage />}
@@ -198,6 +212,10 @@ const MainApp: React.FC = () => {
       {/* Public Footer */}
       <PublicFooter
         onNavigate={(page) => {
+          if (page === 'book') {
+            setShowConsultationModal(true);
+            return;
+          }
           setActivePage(page);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}

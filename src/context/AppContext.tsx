@@ -216,6 +216,35 @@ interface AppContextType {
 
 const STORAGE_KEY = 'BBB_BALE_CHAMBERS_DB_PROD';
 
+// Sensitive portal identity verification (Section 7).
+// A visitor proves identity with the registered email, or with a meaningful trailing
+// part of the phone number / NIN on file. Partial matches need a real minimum length:
+// an identifier without digits (e.g. "guest") reduces to an empty string, and every
+// phone number "ends with" it — which would grant access on the record code alone.
+const MIN_PHONE_SUFFIX_DIGITS = 6;
+const MIN_NIN_SUFFIX_CHARS = 4;
+
+function matchesPortalIdentity(
+  record: { email: string; phone: string; nin: string },
+  identifier: string
+): boolean {
+  const id = identifier.trim().toLowerCase();
+  if (!id) return false;
+
+  if ((record.email || '').trim().toLowerCase() === id) return true;
+
+  const idDigits = id.replace(/\D/g, '');
+  if (idDigits.length >= MIN_PHONE_SUFFIX_DIGITS) {
+    const phoneDigits = (record.phone || '').replace(/\D/g, '');
+    if (phoneDigits && phoneDigits.endsWith(idDigits)) return true;
+  }
+
+  const nin = (record.nin || '').trim().toLowerCase();
+  if (id.length >= MIN_NIN_SUFFIX_CHARS && nin && nin.endsWith(id)) return true;
+
+  return false;
+}
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -261,6 +290,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const isPullingCloudRef = React.useRef(false);
   const hasInitialSyncedRef = React.useRef(false);
+  // True while a local change has not reached the server yet. A snapshot that
+  // arrives during that window must not overwrite it (which silently discarded
+  // edits, including the audit record written by a staff sign-in).
+  const pendingPushRef = React.useRef(false);
   const localVersionRef = React.useRef<number>(0);
   const deviceIdRef = React.useRef<string>('');
   const deletedBranchIdsRef = React.useRef<string[]>([]);
@@ -398,6 +431,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await fetch('/api/sync/pull');
       if (res.ok) {
         const payload: any = await res.json();
+        // Never overwrite local changes that are still waiting to be pushed, and
+        // ignore a snapshot that went stale while this request was in flight.
+        if (pendingPushRef.current || (payload && payload.version && payload.version < localVersionRef.current)) {
+          return false;
+        }
         if (payload && payload.data) {
           localVersionRef.current = payload.version || Date.now();
           applyCloudSnapshot(payload.data);
@@ -887,11 +925,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    const emailMatch = client.email.toLowerCase() === trimmedId;
-    const phoneMatch = client.phone.replace(/\D/g, '').endsWith(trimmedId.replace(/\D/g, ''));
-    const ninMatch = client.ninOrCac.toLowerCase().endsWith(trimmedId);
+    const identityVerified = matchesPortalIdentity(
+      { email: client.email, phone: client.phone, nin: client.ninOrCac },
+      identifier
+    );
 
-    if (emailMatch || phoneMatch || ninMatch) {
+    if (identityVerified) {
       attempt.status = 'Granted';
       setSensitiveAttempts(prev => [attempt, ...prev]);
       setAuthenticatedClient(client);
@@ -936,11 +975,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    const emailMatch = owner.email.toLowerCase() === trimmedId;
-    const phoneMatch = owner.phone.replace(/\D/g, '').endsWith(trimmedId.replace(/\D/g, ''));
-    const ninMatch = owner.ninOrCac.toLowerCase().endsWith(trimmedId);
+    const identityVerified = matchesPortalIdentity(
+      { email: owner.email, phone: owner.phone, nin: owner.ninOrCac },
+      identifier
+    );
 
-    if (emailMatch || phoneMatch || ninMatch) {
+    if (identityVerified) {
       attempt.status = 'Granted';
       setSensitiveAttempts(prev => [attempt, ...prev]);
       setAuthenticatedOwner(owner);
@@ -985,11 +1025,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    const emailMatch = tenant.email.toLowerCase() === trimmedId;
-    const phoneMatch = tenant.phone.replace(/\D/g, '').endsWith(trimmedId.replace(/\D/g, ''));
-    const ninMatch = tenant.nin.toLowerCase().endsWith(trimmedId);
+    const identityVerified = matchesPortalIdentity(
+      { email: tenant.email, phone: tenant.phone, nin: tenant.nin },
+      identifier
+    );
 
-    if (emailMatch || phoneMatch || ninMatch) {
+    if (identityVerified) {
       attempt.status = 'Granted';
       setSensitiveAttempts(prev => [attempt, ...prev]);
       setAuthenticatedTenant(tenant);
