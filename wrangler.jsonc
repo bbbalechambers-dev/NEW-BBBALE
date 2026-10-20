@@ -13,7 +13,7 @@
   },
   "d1_databases": [
     {
-      "binding": "CHAMBERS_DB",
+      "binding": "DB",
       "database_name": "bbbalechambers",
       "database_id": "eb94e59f-64ac-402e-95da-09747a0e51c7"
     },
