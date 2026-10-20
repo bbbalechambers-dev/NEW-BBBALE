@@ -1,6 +1,6 @@
 {
- // wrangler.jsonc
-"name": "new-bbbale",
+  // wrangler.jsonc
+  "name": "new-bbbale",
   "main": "src/worker.ts",
   "compatibility_date": "2026-10-15",
   "compatibility_flags": [
@@ -12,11 +12,6 @@
     "not_found_handling": "single-page-application"
   },
   "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "bbbalechambers",
-      "database_id": "eb94e59f-64ac-402e-95da-09747a0e51c7"
-    },
     {
       "binding": "DB",
       "database_name": "bbbalechambers",
