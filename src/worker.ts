@@ -772,7 +772,7 @@ export default {
     // Cloudflare D1 Database Status Endpoint
     if (pathname === '/api/cloudflare/status' && method === 'GET') {
       ensureChambersIntegrity(syncState);
-      const targetDb = env.CHAMBERS_DB || env.DB;
+      const targetDb = env.CHAMBERS_DB || env.LAW_DB;
       const isConnected = !!targetDb;
       const totalCount =
         (syncState.data.branches?.length || 0) +
