@@ -140,7 +140,7 @@ class DualDatabaseSyncService {
   }
 
   /**
-   * Filter high-priority legal documents for D1 'CHAMBERS_DB' synchronization
+   * Filter high-priority legal documents for D1 'LAW_DB' synchronization
    */
   public filterHighPriorityDocuments(snapshot: {
     matters?: Matter[];
@@ -245,7 +245,7 @@ class DualDatabaseSyncService {
   }
 
   /**
-   * Executes dual-database push to Cloudflare D1 'CHAMBERS_DB' tables
+   * Executes dual-database push to Cloudflare D1 'LAW_DB' tables
    */
   public async executePeriodicSync(
     mode: 'AUTOMATIC_PERIODIC' | 'MANUAL' = 'AUTOMATIC_PERIODIC',
@@ -290,9 +290,9 @@ class DualDatabaseSyncService {
       }
       await Promise.allSettled(firestoreSyncPromises);
 
-      // 4. Push directly to Cloudflare D1 'CHAMBERS_DB' tables (case_files, clients, property_records, audit_logs)
+      // 4. Push directly to Cloudflare D1 'LAW_DB' tables (case_files, clients, property_records, audit_logs)
       const payload = {
-        binding: 'CHAMBERS_DB',
+        binding: 'LAW_DB',
         databaseName: 'chambers-d1-db',
         highPriorityOnly: true,
         mode,
@@ -320,7 +320,7 @@ class DualDatabaseSyncService {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             data: payload.data,
-            actor: 'Dual-Database Sync Service (CHAMBERS_DB)',
+            actor: 'Dual-Database Sync Service (LAW_DB)',
             timestamp: payload.timestamp
           })
         });
@@ -357,7 +357,7 @@ class DualDatabaseSyncService {
         recordsCount: totalBatchCount,
         durationMs,
         status: 'SUCCESS',
-        details: `Synced ${filtered.highPriorityMatters.length} cases, ${filtered.highPriorityClients.length} clients, ${filtered.highPriorityProperties.length} property records to Cloudflare D1 CHAMBERS_DB.`
+        details: `Synced ${filtered.highPriorityMatters.length} cases, ${filtered.highPriorityClients.length} clients, ${filtered.highPriorityProperties.length} property records to Cloudflare D1 LAW_DB.`
       });
 
       if (this.telemetry.history.length > 20) {
@@ -395,7 +395,7 @@ class DualDatabaseSyncService {
   }
 
   /**
-   * Run consistency check between Firestore documents and Cloudflare D1 'CHAMBERS_DB'
+   * Run consistency check between Firestore documents and Cloudflare D1 'LAW_DB'
    */
   public async verifyDualDatabaseConsistency(): Promise<DualDatabaseConsistencyReport> {
     try {

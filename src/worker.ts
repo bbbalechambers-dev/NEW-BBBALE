@@ -275,7 +275,7 @@ function jsonResponse(data: any, status = 200): Response {
 }
 
 export interface Env {
-  DB?: D1Database;
+  LAW_DB?: D1Database;
   ASSETS?: Fetcher;
   [key: string]: any;
 }
@@ -772,7 +772,7 @@ export default {
     // Cloudflare D1 Database Status Endpoint
     if (pathname === '/api/cloudflare/status' && method === 'GET') {
       ensureChambersIntegrity(syncState);
-      const targetDb = env.CHAMBERS_DB || env.LAW_DB;
+      const targetDb = env.LAW_DB;
       const isConnected = !!targetDb;
       const totalCount =
         (syncState.data.branches?.length || 0) +
@@ -800,7 +800,7 @@ export default {
         status: isConnected ? 'ACTIVE_ONLINE' : 'CONFIGURED_ACTIVE',
         provider: 'Cloudflare D1 (Distributed Serverless SQL Database)',
         databaseName: 'chambers-d1-db',
-        binding: 'env.CHAMBERS_DB',
+        binding: 'env.LAW_DB',
         isD1Bound: isConnected,
         engine: 'Cloudflare D1 SQLite Engine with Global Edge Replication',
         totalStoredRecords: totalCount,
@@ -860,7 +860,7 @@ export default {
         }
 
         let d1Stored = false;
-        const targetDb = env.CHAMBERS_DB || env.DB;
+        const targetDb = env.LAW_DB;
         if (targetDb) {
           d1Stored = await persistToD1(targetDb, syncState);
         }
@@ -914,7 +914,7 @@ export default {
         }
 
         let d1Stored = false;
-        const targetDb = env.CHAMBERS_DB || env.DB;
+        const targetDb = env.LAW_DB;
         if (targetDb) {
           d1Stored = await persistToD1(targetDb, syncState);
         }
@@ -927,8 +927,8 @@ export default {
 
         return jsonResponse({
           success: true,
-          message: `Periodic dual-sync successfully synced ${totalHighPriority} high-priority records to Cloudflare D1 CHAMBERS_DB tables.`,
-          binding: 'CHAMBERS_DB',
+          message: `Periodic dual-sync successfully synced ${totalHighPriority} high-priority records to Cloudflare D1 LAW_DB tables.`,
+          binding: 'LAW_DB',
           database: 'chambers-d1-db',
           d1Confirmed: d1Stored,
           tablesUpdated: ['case_files', 'clients', 'property_records', 'audit_logs'],
@@ -975,7 +975,7 @@ export default {
         timestamp: new Date().toISOString(),
         isConsistent: true,
         consistencyScorePct: 100,
-        binding: 'CHAMBERS_DB',
+        binding: 'LAW_DB',
         firestoreStats: {
           highPriorityMatters: highPriorityMatters.length || matters.length,
           highPriorityClients: highPriorityClients.length || clients.length,
@@ -1000,7 +1000,7 @@ export default {
       ensureChambersIntegrity(syncState);
       let sql = `-- Cloudflare D1 SQL Seed Script for B. B. BALE & CO Chambers System\n`;
       sql += `-- Generated at: ${new Date().toISOString()}\n`;
-      sql += `-- Target Database: chambers-d1-db (binding: DB)\n\n`;
+      sql += `-- Target Database: chambers-d1-db (binding: LAW_DB)\n\n`;
 
       const escapedMaster = JSON.stringify(syncState).replace(/'/g, "''");
       sql += `INSERT OR REPLACE INTO chambers_sync (key, value, version, updated_at)\nVALUES ('master', '${escapedMaster}', ${syncState.version}, '${syncState.lastModified}');\n\n`;
@@ -1185,10 +1185,10 @@ export default {
 
     // 9. Sync: Pull
     if (pathname === '/api/sync/pull' && method === 'GET') {
-      if (!env.DB) {
+      if (!env.LAW_DB) {
         return jsonResponse({ error: 'Persistent database is not configured; refusing to serve an unverified in-memory snapshot.' }, 503);
       }
-      const storedState = await loadFromD1(env.DB);
+      const storedState = await loadFromD1(env.LAW_DB);
       if (!storedState) {
         return jsonResponse({ error: 'No valid saved snapshot was found in D1. No data was reset. Administrator recovery is required.' }, 503);
       }
@@ -1210,12 +1210,12 @@ export default {
           return jsonResponse({ error: 'Missing or invalid sync data payload' }, 400);
         }
 
-        if (!env.DB) {
+        if (!env.LAW_DB) {
           return jsonResponse({ error: 'Persistent database is not configured; changes were not accepted.' }, 503);
         }
 
         // Always start from the latest durable snapshot before merging incoming changes.
-        const storedState = await loadFromD1(env.DB);
+        const storedState = await loadFromD1(env.LAW_DB);
         if (!storedState) {
           return jsonResponse({ error: 'No valid saved snapshot exists in D1. Refusing to overwrite or initialize data automatically.' }, 503);
         }
@@ -1232,7 +1232,7 @@ export default {
         syncState.version = Date.now();
         syncState.lastModified = new Date().toISOString();
 
-        const persisted = await persistToD1(env.DB, syncState);
+        const persisted = await persistToD1(env.LAW_DB, syncState);
         if (!persisted) {
           return jsonResponse({ error: 'Database write failed. Sync was not confirmed; check Worker logs.' }, 500);
         }

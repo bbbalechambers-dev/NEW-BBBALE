@@ -166,14 +166,14 @@ export const InternalLayout: React.FC<InternalLayoutProps> = ({ onReturnToPublic
                   <span className="font-mono">africa-south1</span>
                 </button>
 
-                {/* Dual-Database Synchronization Badge: Firestore <-> D1 CHAMBERS_DB */}
+                {/* Dual-Database Synchronization Badge: Firestore <-> D1 LAW_DB */}
                 <button
                   onClick={() => setActiveModule('google-cloud-africa')}
-                  title="Dual Database: Firestore ⟷ Cloudflare D1 (CHAMBERS_DB) Periodic Sync Active"
+                  title="Dual Database: Firestore ⟷ Cloudflare D1 (LAW_DB) Periodic Sync Active"
                   className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-amber-300 bg-amber-950/70 hover:bg-amber-900/80 border border-amber-600/60 rounded cursor-pointer transition-colors"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                  <span className="font-mono">Firestore ⇄ D1 (CHAMBERS_DB)</span>
+                  <span className="font-mono">Firestore ⇄ D1 (LAW_DB)</span>
                 </button>
               </>
             )}

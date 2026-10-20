@@ -37,7 +37,7 @@ export const DualDatabaseSyncCard: React.FC<{ compact?: boolean }> = ({ compact 
     try {
       const res = await triggerDualDatabaseSync();
       if (res.success) {
-        setSuccessFeedback(`Pushed ${res.count} high-priority Firestore legal records to Cloudflare D1 'CHAMBERS_DB'.`);
+        setSuccessFeedback(`Pushed ${res.count} high-priority Firestore legal records to Cloudflare D1 'LAW_DB'.`);
         setTimeout(() => setSuccessFeedback(null), 5000);
       }
     } finally {
@@ -65,7 +65,7 @@ export const DualDatabaseSyncCard: React.FC<{ compact?: boolean }> = ({ compact 
           </div>
           <div>
             <div className="font-bold flex items-center gap-1.5 text-white">
-              Dual Sync: Firestore ⟷ D1 'CHAMBERS_DB'
+              Dual Sync: Firestore ⟷ D1 'LAW_DB'
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             </div>
             <div className="text-[11px] text-gray-400 font-mono">
@@ -105,7 +105,7 @@ export const DualDatabaseSyncCard: React.FC<{ compact?: boolean }> = ({ compact 
               </span>
             </div>
             <p className="text-xs text-gray-300 mt-1 max-w-2xl leading-relaxed">
-              Periodically pushes high-priority Firestore legal documents to Cloudflare D1 distributed SQLite tables (<strong>CHAMBERS_DB</strong>) ensuring continuous dual-database redundancy and edge availability.
+              Periodically pushes high-priority Firestore legal documents to Cloudflare D1 distributed SQLite tables (<strong>LAW_DB</strong>) ensuring continuous dual-database redundancy and edge availability.
             </p>
           </div>
         </div>
@@ -152,7 +152,7 @@ export const DualDatabaseSyncCard: React.FC<{ compact?: boolean }> = ({ compact 
           <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#c9a227]">
             <span>Firestore</span>
             <ArrowRight className="w-4 h-4 text-emerald-400 animate-pulse" />
-            <span>CHAMBERS_DB</span>
+            <span>LAW_DB</span>
           </div>
           <div className="text-[10px] text-gray-400">
             Interval: <strong>{dualSyncTelemetry.intervalSeconds}s</strong> • Auto: <strong>{dualSyncTelemetry.autoSyncEnabled ? 'Enabled' : 'Paused'}</strong>
@@ -166,11 +166,11 @@ export const DualDatabaseSyncCard: React.FC<{ compact?: boolean }> = ({ compact 
             Target Relational Engine
           </div>
           <div className="font-bold text-sm text-white flex items-center md:justify-end gap-1.5">
-            Cloudflare D1 (CHAMBERS_DB)
+            Cloudflare D1 (LAW_DB)
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="text-[11px] text-gray-300 font-mono">
-            Binding: <strong>env.CHAMBERS_DB</strong>
+            Binding: <strong>env.LAW_DB</strong>
           </div>
         </div>
       </div>

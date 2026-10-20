@@ -237,7 +237,7 @@ app.get('/api/cloudflare/status', (_req, res) => {
     status: 'ACTIVE_ONLINE',
     provider: 'Cloudflare D1 (Serverless Distributed SQL Database)',
     databaseName: 'chambers-d1-db',
-    binding: 'env.CHAMBERS_DB',
+    binding: 'env.LAW_DB',
     engine: 'Cloudflare D1 SQLite Engine with Global Edge Replication',
     isD1Bound: true,
     totalStoredRecords: totalCount,
@@ -340,7 +340,7 @@ app.post('/api/cloudflare/sync', (req, res) => {
 app.post('/api/cloudflare/dual-sync', (req: Request, res: Response) => {
   try {
     ensureChambersIntegrity(syncState);
-    const { data, binding = 'CHAMBERS_DB', mode = 'AUTOMATIC_PERIODIC' } = req.body || {};
+    const { data, binding = 'LAW_DB', mode = 'AUTOMATIC_PERIODIC' } = req.body || {};
 
     if (data && typeof data === 'object') {
       applyIncomingData(data);
@@ -358,7 +358,7 @@ app.post('/api/cloudflare/dual-sync', (req: Request, res: Response) => {
     res.json({
       success: true,
       message: `Periodic dual-sync successfully synced ${totalHighPriority} high-priority records to Cloudflare D1 tables (case_files, clients, property_records, audit_logs).`,
-      binding: binding || 'CHAMBERS_DB',
+      binding: binding || 'LAW_DB',
       database: 'chambers-d1-db',
       mode,
       tablesUpdated: ['case_files', 'clients', 'property_records', 'audit_logs'],
@@ -405,7 +405,7 @@ app.get('/api/cloudflare/consistency', (_req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
     isConsistent: true,
     consistencyScorePct: 100,
-    binding: 'CHAMBERS_DB',
+    binding: 'LAW_DB',
     firestoreStats: {
       highPriorityMatters: highPriorityMatters.length || matters.length,
       highPriorityClients: highPriorityClients.length || clients.length,

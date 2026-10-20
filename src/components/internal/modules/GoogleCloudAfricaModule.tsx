@@ -371,7 +371,7 @@ gcloud run deploy bb-bale-chambers \\
                     </span>
                     <span>•</span>
                     <span className="flex items-center gap-1 text-gray-300">
-                      Binding: <strong className="text-white font-bold">env.CHAMBERS_DB</strong>
+                      Binding: <strong className="text-white font-bold">env.LAW_DB</strong>
                     </span>
                     <span>•</span>
                     <span className="flex items-center gap-1 text-gray-300">
@@ -455,8 +455,8 @@ gcloud run deploy bb-bale-chambers \\
                 <span>Worker Binding</span>
                 <Lock className="w-3.5 h-3.5 text-emerald-600" />
               </div>
-              <div className="text-base font-bold font-mono text-[#1a2a4a]">env.CHAMBERS_DB</div>
-              <div className="text-xs text-gray-700 font-mono">wrangler.toml Configured</div>
+              <div className="text-base font-bold font-mono text-[#1a2a4a]">env.LAW_DB</div>
+              <div className="text-xs text-gray-700 font-mono">wrangler.jsonc Configured</div>
               <div className="text-[11px] text-gray-500">Zero-latency Worker invocation</div>
             </div>
 

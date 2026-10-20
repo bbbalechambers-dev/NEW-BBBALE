@@ -206,7 +206,7 @@ interface AppContextType {
   // Cloudflare D1 Database Sync
   pushAllToCloudflareDatabase: () => Promise<{ success: boolean; count: number; error?: string }>;
 
-  // Dual-Database Synchronization Service (Firestore <-> Cloudflare D1 CHAMBERS_DB)
+  // Dual-Database Synchronization Service (Firestore <-> Cloudflare D1 LAW_DB)
   dualSyncTelemetry: DualSyncTelemetry;
   triggerDualDatabaseSync: () => Promise<{ success: boolean; count: number; error?: string }>;
   setDualSyncAutoInterval: (seconds: number) => void;
