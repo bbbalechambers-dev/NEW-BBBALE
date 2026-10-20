@@ -455,7 +455,11 @@ async function initD1Tables(db: D1Database): Promise<boolean> {
 
 async function persistToD1(db: D1Database, state: ServerSyncState): Promise<boolean> {
   try {
-    await initD1Tables(db);
+    const tablesReady = await initD1Tables(db);
+    if (!tablesReady) {
+      console.error('D1 persistence aborted: required tables could not be initialized.');
+      return false;
+    }
 
     // 1. Store Master Snapshot in D1
     await db.prepare(`
@@ -633,12 +637,18 @@ async function persistToD1(db: D1Database, state: ServerSyncState): Promise<bool
 
 async function loadFromD1(db: D1Database): Promise<ServerSyncState | null> {
   try {
+    // Do not run CREATE TABLE statements on every read. The production schema
+    // should be installed by deployment/migrations, and reads should stay read-only.
     const row = await db.prepare('SELECT value FROM chambers_sync WHERE key = ?').bind('master').first<{ value: string }>();
     if (row && row.value) {
-      return JSON.parse(row.value);
+      const parsed = JSON.parse(row.value);
+      if (parsed && typeof parsed === 'object' && parsed.data && typeof parsed.data === 'object') {
+        return parsed as ServerSyncState;
+      }
+      console.error('D1 master snapshot exists but has an invalid structure; refusing to load it.');
     }
   } catch (err) {
-    console.warn('Cloudflare D1 load note:', err);
+    console.error('Cloudflare D1 load failed:', err);
   }
   return null;
 }
@@ -1175,6 +1185,14 @@ export default {
 
     // 9. Sync: Pull
     if (pathname === '/api/sync/pull' && method === 'GET') {
+      if (!env.DB) {
+        return jsonResponse({ error: 'Persistent database is not configured; refusing to serve an unverified in-memory snapshot.' }, 503);
+      }
+      const storedState = await loadFromD1(env.DB);
+      if (!storedState) {
+        return jsonResponse({ error: 'No valid saved snapshot was found in D1. No data was reset. Administrator recovery is required.' }, 503);
+      }
+      syncState = storedState;
       ensureChambersIntegrity(syncState);
       return jsonResponse({
         version: syncState.version,
@@ -1192,12 +1210,31 @@ export default {
           return jsonResponse({ error: 'Missing or invalid sync data payload' }, 400);
         }
 
+        if (!env.DB) {
+          return jsonResponse({ error: 'Persistent database is not configured; changes were not accepted.' }, 503);
+        }
+
+        // Always start from the latest durable snapshot before merging incoming changes.
+        const storedState = await loadFromD1(env.DB);
+        if (!storedState) {
+          return jsonResponse({ error: 'No valid saved snapshot exists in D1. Refusing to overwrite or initialize data automatically.' }, 503);
+        }
+        syncState = storedState;
+
+        const incomingArrays = Object.values(data).filter(Array.isArray) as any[][];
+        const incomingHasRecords = incomingArrays.some((items) => items.length > 0);
+        const storedHasRecords = Object.values(syncState.data).some((items) => Array.isArray(items) && items.length > 0);
+        if (storedHasRecords && !incomingHasRecords) {
+          return jsonResponse({ error: 'Incoming sync payload is empty while saved data exists. Write rejected to protect existing records.' }, 409);
+        }
+
         applyIncomingSyncData(data);
         syncState.version = Date.now();
         syncState.lastModified = new Date().toISOString();
 
-        if (env.DB) {
-          await persistToD1(env.DB, syncState);
+        const persisted = await persistToD1(env.DB, syncState);
+        if (!persisted) {
+          return jsonResponse({ error: 'Database write failed. Sync was not confirmed; check Worker logs.' }, 500);
         }
 
         return jsonResponse({
@@ -1205,7 +1242,7 @@ export default {
           version: syncState.version,
           lastModified: syncState.lastModified,
           syncedBy: actor || clientDeviceId || 'Chambers Cloudflare Edge Node',
-          cloudflareD1Persisted: !!env.DB
+          cloudflareD1Persisted: true
         });
       } catch (err: any) {
         return jsonResponse({ error: err.message || 'Sync push failed' }, 500);
@@ -1214,8 +1251,8 @@ export default {
 
     // 11. Sync: Reset
     if (pathname === '/api/sync/reset' && method === 'POST') {
-      syncState = createInitialSyncState();
-      return jsonResponse({ success: true, version: syncState.version });
+      // Public reset is disabled. It could destroy the chambers' live dataset.
+      return jsonResponse({ error: 'Database reset is disabled on the live deployment. Use an authenticated, audited maintenance procedure.' }, 403);
     }
 
     // 12. Auth: Verify Login
