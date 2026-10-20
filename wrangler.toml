@@ -16,3 +16,6 @@ database_id = "ca70ad79-15b1-46e1-a2ba-35a9cf99705d"
 [vars]
 NODE_ENV = "production"
 ENABLE_CLOUDSQL = "false"
+
+[observability]
+enabled = true
