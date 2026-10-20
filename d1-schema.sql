@@ -1,3 +1,4 @@
+
 -- ==============================================================================
 -- Cloudflare D1 Relational Schema for B. B. BALE & CO Chambers Management System
 -- Database: chambers-d1-db (binding: DB)
