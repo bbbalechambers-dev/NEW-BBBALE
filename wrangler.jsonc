@@ -12,9 +12,10 @@
   },
   "d1_databases": [
     {
-      "binding": "LAW_DB",
-      "database_name": "bbbalechambers",
-      "database_id": "eb94e59f-64ac-402e-95da-09747a0e51c7"
+        "observability": {
+    "logs": {
+      "enabled": false,
+      "invocation_logs": true
     }
   ],
   "vars": {
